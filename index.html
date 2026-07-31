@@ -19,7 +19,10 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; transition: background 1s ease; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            transition: background 1s ease; 
+        }
         .glass-panel {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(12px);
@@ -33,7 +36,7 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.4); }
     </style>
 </head>
-<body class="min-h-screen text-slate-800 bg-gray-100">
+<body class="min-h-screen text-slate-800 bg-gray-100 transition-colors duration-1000" id="body-bg">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -43,7 +46,7 @@
         const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
         
         // URL del Google Apps Script para guardar las propuestas
-        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtoo_vRUiERitsQggaR5xhyIcTcY4FE5QCT7hJyVWBsuZlDmF0EEatoVCM1H67jgFm/exec";
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzuEBhHpg171F5lMuAE6LYjKxM5rfwQxK83vPE1yIYi-ItAY6m7okeRJs_Zb-qDHeoB/exec";
 
         // Datos de prueba con colores en HEX
         const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji
@@ -76,7 +79,7 @@
                     date: values[0]?.trim(),
                     title: values[1]?.trim(),
                     description: values[2]?.trim() || "",
-                    color: values[3]?.trim() || "#e5e7eb", // Fallback a gris en hex
+                    color: values[3]?.trim() || "#e5e7eb", // Fallback a gris claro en hex
                     emoji: values[4]?.trim() || "📌"
                 };
             }).filter(event => event.date);
@@ -174,7 +177,7 @@
             };
 
             return (
-                <header className="glass-panel sticky top-0 z-40 px-6 py-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 rounded-b-2xl">
+                <header className="glass-panel sticky top-0 z-40 px-4 md:px-6 py-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 rounded-b-2xl mb-6">
                     <div className="flex items-center gap-3">
                         <i className="ph-fill ph-calendar-blank text-3xl text-indigo-600"></i>
                         <h1 className="text-2xl font-bold text-gray-800">Mi Agenda 2026</h1>
@@ -303,129 +306,150 @@
 
         const EventProposals = () => {
             const [proposals, setProposals] = useState([]);
-            const [newProposal, setNewProposal] = useState({ title: '', date: '', email: '' });
-            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [email, setEmail] = useState('');
+            const [title, setTitle] = useState('');
+            const [date, setDate] = useState('');
+            const [status, setStatus] = useState(''); // 'loading', 'success', 'error', ''
+            const [errorMessage, setErrorMessage] = useState('');
 
             const handleProposalSubmit = async (e) => {
                 e.preventDefault();
-                setIsSubmitting(true);
+                setStatus('loading');
+                setErrorMessage('');
+
+                // Modo simulación si no hay URL configurada
+                if (!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
+                    setTimeout(() => {
+                        if (email === 'test@local.com') {
+                            setProposals([{ title, date, author: email }, ...proposals]);
+                            setTitle('');
+                            setDate('');
+                            setStatus('success');
+                        } else {
+                            setStatus('error');
+                            setErrorMessage("Simulación: Correo no autorizado. Usa 'test@local.com'");
+                        }
+                        setTimeout(() => setStatus(''), 3000);
+                    }, 800);
+                    return;
+                }
 
                 try {
-                    // Modo simulación si no hay URL configurada
-                    if (!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
-                        alert("⚠️ MODO SIMULACIÓN:\nNo has configurado la URL de Google Apps Script.\nSimulando envío exitoso para: " + newProposal.email);
-                        setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
-                        setNewProposal({ title: '', date: '', email: '' });
-                        setIsSubmitting(false);
-                        return;
-                    }
+                    // Usamos URLSearchParams para engañar a CORS enviando datos como formulario simple
+                    const params = new URLSearchParams();
+                    params.append('email', email);
+                    params.append('title', title);
+                    params.append('date', date);
 
-                    // Validación rápida para evitar confusiones de URL
-                    if (!APP_SCRIPT_URL.includes("script.google.com")) {
-                        throw new Error("La URL de APP_SCRIPT_URL parece incorrecta.\nAsegúrate de usar el link de la 'Aplicación Web' que termina en '/exec' y NO el link de tu Google Sheet.");
-                    }
-
-                    // Envío real con FormData puro para EVITAR el bloqueo de CORS del navegador
-                    const formData = new FormData();
-                    formData.append('title', newProposal.title);
-                    formData.append('date', newProposal.date);
-                    formData.append('email', newProposal.email);
-
-                    // Hacemos el fetch SIN el bloque de 'headers' explícito
-                    const res = await fetch(APP_SCRIPT_URL, {
+                    const response = await fetch(APP_SCRIPT_URL, {
                         method: 'POST',
-                        body: formData
+                        body: params
                     });
-                    
-                    const textResponse = await res.text();
-                    
-                    let data;
-                    try {
-                        data = JSON.parse(textResponse);
-                    } catch (parseError) {
-                        throw new Error("Respuesta no válida del servidor. El script no está devolviendo JSON.\n\nRespuesta: " + textResponse.substring(0, 80) + "...");
-                    }
+
+                    const data = await response.json();
                     
                     if (data.result === 'success') {
-                        setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
-                        setNewProposal({ title: '', date: '', email: '' });
-                        alert("✅ ¡Propuesta enviada y autorizada con éxito!");
+                        setProposals([{ title, date, author: email }, ...proposals]);
+                        setTitle('');
+                        setDate('');
+                        setStatus('success');
                     } else {
-                        alert("❌ Error: " + data.error);
+                        setStatus('error');
+                        setErrorMessage(data.error || "El correo no tiene permisos.");
                     }
                 } catch (error) {
-                    console.error("Error completo:", error);
-                    alert("❌ Hubo un error de conexión.\n\nDetalle: " + error.message);
-                } finally {
-                    setIsSubmitting(false);
+                    console.error("Error al enviar propuesta:", error);
+                    setStatus('error');
+                    setErrorMessage("Error de conexión. Verifica la URL de tu Script y que esté implementado como 'Cualquier persona'.");
                 }
+                
+                setTimeout(() => setStatus(''), 5000);
             };
 
             return (
-                <div className="glass-panel p-6 rounded-3xl flex flex-col h-full">
-                    <div className="flex items-center gap-2 mb-4">
-                        <i className="ph-fill ph-lightbulb text-2xl text-yellow-500"></i>
-                        <h2 className="text-xl font-bold text-gray-800">Proponer Eventos</h2>
-                    </div>
-                    
-                    <form onSubmit={handleProposalSubmit} className="flex flex-col gap-3 mb-6 bg-white/50 p-4 rounded-xl shadow-sm border border-white">
-                        <p className="text-xs text-gray-500 mb-1">Solo los correos autorizados pueden proponer.</p>
+                <div className="glass-panel p-6 rounded-3xl h-full flex flex-col">
+                    <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                        <i className="ph-fill ph-lightbulb text-yellow-500"></i>
+                        Proponer Evento
+                    </h2>
+                    <p className="text-sm text-gray-600 mb-6">Solo usuarios autorizados pueden proponer nuevos eventos a la agenda.</p>
+
+                    <form onSubmit={handleProposalSubmit} className="space-y-4 mb-6">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Tu Correo Autorizado</label>
+                            <input 
+                                type="email" 
+                                required 
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="tu@correo.com"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Título del evento</label>
+                            <input 
+                                type="text" 
+                                required 
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="Ej: Posada Navideña"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Fecha Propuesta</label>
+                            <input 
+                                type="date" 
+                                required
+                                min="2026-08-01"
+                                max="2026-12-31"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                            />
+                        </div>
                         
-                        <input 
-                            type="email" 
-                            placeholder="Tu correo de Google..." 
-                            value={newProposal.email}
-                            onChange={e => setNewProposal({...newProposal, email: e.target.value.trim()})}
-                            required
-                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        />
-                        
-                        <input 
-                            type="text" 
-                            placeholder="Nombre del evento (ej. Posada)" 
-                            value={newProposal.title}
-                            onChange={e => setNewProposal({...newProposal, title: e.target.value})}
-                            required
-                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        />
-                        
-                        <input 
-                            type="date" 
-                            value={newProposal.date}
-                            onChange={e => setNewProposal({...newProposal, date: e.target.value})}
-                            required
-                            min="2026-08-01"
-                            max="2026-12-31"
-                            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                        />
-                        
+                        {status === 'error' && (
+                            <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium">
+                                ❌ {errorMessage}
+                            </div>
+                        )}
+                        {status === 'success' && (
+                            <div className="bg-green-100 text-green-700 p-3 rounded-lg text-sm font-medium">
+                                ✅ ¡Propuesta enviada exitosamente!
+                            </div>
+                        )}
+
                         <button 
                             type="submit" 
-                            disabled={isSubmitting}
-                            className={`mt-2 py-2 px-4 rounded-lg font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                            disabled={status === 'loading'}
+                            className="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 flex justify-center items-center gap-2"
                         >
-                            {isSubmitting ? (
-                                <><i className="ph ph-spinner animate-spin"></i> Enviando...</>
+                            {status === 'loading' ? (
+                                <><i className="ph ph-spinner animate-spin text-lg"></i> Enviando...</>
                             ) : (
-                                'Enviar Propuesta'
+                                "Enviar Propuesta"
                             )}
                         </button>
                     </form>
 
-                    <h3 className="font-semibold text-gray-700 mb-2">Propuestas Recientes:</h3>
-                    <div className="flex-1 overflow-y-auto pr-2 space-y-2 min-h-[150px]">
+                    <div className="flex-1 overflow-y-auto">
+                        <h3 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2">Propuestas Recientes</h3>
                         {proposals.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50/50 rounded-lg">Aún no has añadido propuestas.</p>
+                            <p className="text-sm text-gray-500 italic text-center py-4">No hay propuestas aún en esta sesión.</p>
                         ) : (
-                            proposals.map((prop, i) => (
-                                <div key={prop.id || i} className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-shadow">
-                                    <span className="font-bold text-sm text-gray-800">{prop.title}</span>
-                                    <div className="flex justify-between items-center mt-2 text-xs">
-                                        <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded-md">📅 {prop.date}</span>
-                                        <span className="text-gray-500 truncate max-w-[120px]" title={prop.author}>👤 {prop.author}</span>
-                                    </div>
-                                </div>
-                            ))
+                            <ul className="space-y-3">
+                                {proposals.map((prop, idx) => (
+                                    <li key={idx} className="bg-white/60 p-3 rounded-lg border border-gray-100 text-sm">
+                                        <div className="font-semibold text-gray-800">{prop.title}</div>
+                                        <div className="text-xs text-gray-500 flex justify-between mt-1">
+                                            <span>📅 {prop.date}</span>
+                                            <span className="truncate ml-2" title={prop.author}>👤 {prop.author.split('@')[0]}</span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
                         )}
                     </div>
                 </div>
@@ -434,144 +458,100 @@
 
         const App = () => {
             const [events, setEvents] = useState([]);
-            const [weather, setWeather] = useState({ temp: '--', icon: 'ph-sun', color: 'text-yellow-500', bgClass: 'bg-gradient-to-br from-blue-100 to-indigo-100' });
             const [searchQuery, setSearchQuery] = useState('');
-            const [modalData, setModalData] = useState({ isOpen: false, date: null, events: [], title: '' });
+            const [modalConfig, setModalConfig] = useState({ isOpen: false, date: null, events: [], title: '' });
+            const [weather, setWeather] = useState({ temp: '--', icon: null, color: 'text-gray-500' });
 
-            // Cargar Clima de Hermosillo dinámicamente
+            useEffect(() => {
+                const fetchEvents = async () => {
+                    try {
+                        if (!GOOGLE_SHEETS_CSV_URL) throw new Error("No URL");
+                        const res = await fetch(GOOGLE_SHEETS_CSV_URL);
+                        const text = await res.text();
+                        setEvents(parseCSV(text));
+                    } catch (e) {
+                        console.log("Usando datos locales de prueba");
+                        setEvents(parseCSV(MOCK_CSV_DATA));
+                    }
+                };
+                fetchEvents();
+            }, []);
+
             useEffect(() => {
                 const fetchWeather = async () => {
                     try {
-                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true');
+                        // Coordenadas de Hermosillo, Sonora
+                        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true");
                         const data = await res.json();
-                        
-                        const temp = Math.round(data.current_weather.temperature);
                         const code = data.current_weather.weathercode;
+                        const temp = Math.round(data.current_weather.temperature);
                         
-                        let icon = 'ph-sun';
-                        let color = 'text-yellow-500';
-                        let bgClass = 'bg-gradient-to-br from-blue-100 to-amber-100';
+                        let icon = "ph-sun"; let color = "text-yellow-500"; let bg = "bg-blue-50";
+                        if (code >= 1 && code <= 3) { icon = "ph-cloud-sun"; color = "text-gray-400"; bg = "bg-gray-100"; }
+                        else if (code >= 51 && code <= 67) { icon = "ph-cloud-rain"; color = "text-blue-500"; bg = "bg-blue-100"; }
+                        else if (code >= 71) { icon = "ph-snowflake"; color = "text-cyan-500"; bg = "bg-cyan-50"; }
+                        else if (code >= 95) { icon = "ph-cloud-lightning"; color = "text-purple-500"; bg = "bg-slate-200"; }
 
-                        if (code >= 1 && code <= 3) {
-                            icon = 'ph-cloud-sun'; color = 'text-gray-400'; bgClass = 'bg-gradient-to-br from-gray-100 to-blue-50';
-                        } else if (code >= 45 && code <= 48) {
-                            icon = 'ph-cloud'; color = 'text-gray-500'; bgClass = 'bg-gradient-to-br from-gray-200 to-gray-300';
-                        } else if (code >= 51) {
-                            icon = 'ph-cloud-rain'; color = 'text-blue-500'; bgClass = 'bg-gradient-to-br from-slate-200 to-blue-200';
-                        }
-
-                        setWeather({ temp, icon, color, bgClass });
-                        document.body.className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bgClass}`;
-                    } catch (error) {
-                        console.error("No se pudo cargar el clima", error);
-                        document.body.className = "min-h-screen text-slate-800 bg-gray-100";
+                        setWeather({ temp, icon, color });
+                        document.getElementById('body-bg').className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bg}`;
+                    } catch (e) {
+                        console.error("Error al obtener el clima");
                     }
                 };
                 fetchWeather();
             }, []);
 
-            // Cargar datos CSV al iniciar
-            useEffect(() => {
-                if (GOOGLE_SHEETS_CSV_URL && GOOGLE_SHEETS_CSV_URL.trim() !== "") {
-                    fetch(GOOGLE_SHEETS_CSV_URL)
-                        .then(response => response.text())
-                        .then(text => setEvents(parseCSV(text)))
-                        .catch(err => {
-                            console.error("Error cargando CSV, usando datos de prueba", err);
-                            setEvents(parseCSV(MOCK_CSV_DATA));
-                        });
-                } else {
-                    setEvents(parseCSV(MOCK_CSV_DATA));
-                }
-            }, []);
-
-            // Filtrar eventos por búsqueda
             const filteredEvents = useMemo(() => {
-                if (!searchQuery) return null;
+                if (!searchQuery) return events;
+                const lowerQ = searchQuery.toLowerCase();
                 return events.filter(e => 
-                    e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                    e.description.toLowerCase().includes(searchQuery.toLowerCase())
+                    e.title.toLowerCase().includes(lowerQ) || 
+                    e.description.toLowerCase().includes(lowerQ)
                 );
             }, [events, searchQuery]);
 
-            // Efecto para abrir modal automáticamente si hay búsqueda
-            useEffect(() => {
-                if (searchQuery && filteredEvents && filteredEvents.length > 0) {
-                    setModalData({
-                        isOpen: true,
-                        date: null,
-                        events: filteredEvents,
-                        title: `Resultados para "${searchQuery}"`
-                    });
-                } else if (searchQuery && filteredEvents && filteredEvents.length === 0) {
-                     setModalData({
-                        isOpen: true,
-                        date: null,
-                        events: [],
-                        title: `Sin resultados`
-                    });
-                } else {
-                    setModalData(prev => ({...prev, isOpen: false}));
-                }
-            }, [searchQuery, filteredEvents]);
-
-            const handleDayClick = (dateStr, dayEvents) => {
-                setSearchQuery(''); 
-                setModalData({
-                    isOpen: true,
-                    date: dateStr,
-                    events: dayEvents,
-                    title: `Agenda: ${dateStr}`
-                });
+            const handleDayClick = (date, dayEvents) => {
+                setModalConfig({ isOpen: true, date, events: dayEvents, title: `Agenda: ${date}` });
             };
 
-            const closeModal = () => {
-                setSearchQuery('');
-                setModalData({...modalData, isOpen: false});
+            const openSearchResults = () => {
+                setModalConfig({ isOpen: true, date: null, events: filteredEvents, title: `Resultados de: "${searchQuery}"` });
             };
 
             return (
-                <div className="max-w-7xl mx-auto pb-12">
+                <div className="max-w-7xl mx-auto px-4 md:px-8 pb-12">
                     <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} weather={weather} />
                     
-                    <main className="px-4 py-8">
-                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                            {/* Panel de Calendario */}
-                            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {MONTHS.map(monthInfo => (
-                                    <CalendarMonth 
-                                        key={monthInfo.name} 
-                                        monthInfo={monthInfo} 
-                                        events={events} 
-                                        onDayClick={handleDayClick}
-                                    />
-                                ))}
-                                
-                                <div className="glass-panel p-6 rounded-3xl flex flex-col justify-center items-center text-center">
-                                    <div className="w-20 h-20 bg-white/60 rounded-full flex items-center justify-center mb-4 shadow-inner">
-                                        <i className="ph-fill ph-file-csv text-4xl text-green-600"></i>
-                                    </div>
-                                    <h3 className="text-xl font-bold mb-2">Conectado a Datos</h3>
-                                    <p className="text-sm text-gray-600 mb-4">
-                                        Total de eventos registrados: <br/>
-                                        <span className="text-2xl font-black text-indigo-600">{events.length}</span>
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            {/* Panel Lateral */}
-                            <div className="lg:col-span-1 flex flex-col">
-                                <EventProposals />
-                            </div>
+                    {searchQuery && (
+                        <div className="mb-6 p-4 glass-panel rounded-xl flex justify-between items-center">
+                            <span>Encontramos <strong>{filteredEvents.length}</strong> eventos para "{searchQuery}"</span>
+                            <button onClick={openSearchResults} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">Ver resultados</button>
                         </div>
-                    </main>
+                    )}
+
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {MONTHS.map(month => (
+                                <CalendarMonth 
+                                    key={month.name} 
+                                    monthInfo={month} 
+                                    events={filteredEvents} 
+                                    onDayClick={handleDayClick}
+                                />
+                            ))}
+                        </div>
+                        
+                        <div className="w-full lg:w-96 flex-shrink-0">
+                            <EventProposals />
+                        </div>
+                    </div>
 
                     <Modal 
-                        isOpen={modalData.isOpen} 
-                        onClose={closeModal} 
-                        date={modalData.date} 
-                        events={modalData.events} 
-                        title={modalData.title}
+                        isOpen={modalConfig.isOpen} 
+                        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} 
+                        date={modalConfig.date} 
+                        events={modalConfig.events} 
+                        title={modalConfig.title}
                     />
                 </div>
             );
