@@ -5,31 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agenda Hermosillo 2026</title>
     
-    <!-- Tailwind CSS para los estilos -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React y ReactDOM para la UI interactiva -->
+    <!-- React y ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    
-    <!-- Babel para compilar JSX en el navegador -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
     <!-- Iconos Phosphor -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            transition: background 1s ease; 
-        }
+        body { font-family: 'Inter', sans-serif; transition: background 1s ease; }
         .glass-panel {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.3);
         }
-        /* Scrollbar estilizado */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
@@ -42,23 +35,16 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // URL del CSV de Google Sheets (Reemplazar con tu URL de lectura pública)
+        // URL del CSV de Google Sheets (Calendario Base)
         const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
         
-        // URL del Google Apps Script para guardar las propuestas
-        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxKH1h5WNxEg6fhgGzMtnMtA_fy-yJZETks8TtLpzHs36NZrhFCelCFIazJagILpGkO/exec";
+        // ¡REEMPLAZA ESTO CON TU NUEVA URL DE APPS SCRIPT!
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziJQ1HrN7Wpc_nawpLMVAF6RO7VXazLWr4jTyX5aml8c0197tUrMrcahvtLcsmJ41s/exec";
 
-        // Datos de prueba con colores en HEX
         const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji
 2026-08-01,Inicio de mes,Planear objetivos,#bfdbfe,🚀
 2026-08-15,Cena con amigos,Restaurante en el centro a las 8pm,#fef08a,🌮
-2026-09-15,Grito de Independencia,Festejos patrios,#bbf7d0,🇲🇽
-2026-10-31,Halloween,Fiesta de disfraces,#e9d5ff,🎃
-2026-11-20,Día de la Revolución,Día festivo - descansar,#fecaca,🇲🇽
-2026-12-24,Nochebuena,Cena familiar,#fecaca,🎄
-2026-12-31,Fin de año,Despedir el 2026,#bfdbfe,🎆
-2026-08-10,Junta de proyecto,Revisión de avances,#e2e8f0,💼
-2026-10-12,Cita Médica,Chequeo general 10:00 AM,#bfdbfe,🩺`;
+2026-09-15,Grito de Independencia,Festejos patrios,#bbf7d0,🇲🇽`;
 
         const MONTHS = [
             { name: "Agosto", index: 7, days: 31, startDay: 6 }, 
@@ -71,110 +57,59 @@
 
         const parseCSV = (csvText) => {
             const lines = csvText.trim().split('\n');
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-            
             return lines.slice(1).map(line => {
                 const values = line.split(','); 
                 return {
                     date: values[0]?.trim(),
                     title: values[1]?.trim(),
                     description: values[2]?.trim() || "",
-                    color: values[3]?.trim() || "#e5e7eb", // Fallback a gris claro en hex
+                    color: values[3]?.trim() || "#e5e7eb", 
                     emoji: values[4]?.trim() || "📌"
                 };
             }).filter(event => event.date);
         };
 
         class MarioSynth {
-            constructor() {
-                this.audioCtx = null;
-                this.isPlaying = false;
-                this.timeouts = [];
-            }
-
-            init() {
-                if (!this.audioCtx) {
-                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-            }
-
+            constructor() { this.audioCtx = null; this.isPlaying = false; this.timeouts = []; }
+            init() { if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
             playNote(frequency, startTime, duration) {
                 if (!this.audioCtx) return;
                 const osc = this.audioCtx.createOscillator();
                 const gain = this.audioCtx.createGain();
-                
-                osc.type = 'square'; 
-                osc.frequency.value = frequency;
-                
-                osc.connect(gain);
-                gain.connect(this.audioCtx.destination);
-                
+                osc.type = 'square'; osc.frequency.value = frequency;
+                osc.connect(gain); gain.connect(this.audioCtx.destination);
                 gain.gain.setValueAtTime(0, startTime);
                 gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05); 
                 gain.gain.setValueAtTime(0.1, startTime + duration - 0.05);
                 gain.gain.linearRampToValueAtTime(0, startTime + duration);
-                
-                osc.start(startTime);
-                osc.stop(startTime + duration);
+                osc.start(startTime); osc.stop(startTime + duration);
             }
-
             playTheme() {
                 this.init();
-                if (this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
-                }
+                if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
                 this.isPlaying = true;
-
                 const E5 = 659.25, C5 = 523.25, G5 = 783.99, G4 = 392.00;
                 const notes = [
-                    { f: E5, d: 0.15, t: 0.0 },
-                    { f: E5, d: 0.15, t: 0.3 },
-                    { f: E5, d: 0.15, t: 0.6 },
-                    { f: C5, d: 0.15, t: 0.9 },
-                    { f: E5, d: 0.15, t: 1.2 },
-                    { f: G5, d: 0.30, t: 1.6 },
-                    { f: G4, d: 0.30, t: 2.2 }
+                    { f: E5, d: 0.15, t: 0.0 }, { f: E5, d: 0.15, t: 0.3 }, { f: E5, d: 0.15, t: 0.6 },
+                    { f: C5, d: 0.15, t: 0.9 }, { f: E5, d: 0.15, t: 1.2 }, { f: G5, d: 0.30, t: 1.6 }, { f: G4, d: 0.30, t: 2.2 }
                 ];
-
                 const now = this.audioCtx.currentTime;
-                notes.forEach(n => {
-                    this.playNote(n.f, now + n.t, n.d);
-                });
-
-                const timer = setTimeout(() => {
-                    this.isPlaying = false;
-                    window.dispatchEvent(new Event('mario-synth-ended'));
-                }, 2800);
+                notes.forEach(n => this.playNote(n.f, now + n.t, n.d));
+                const timer = setTimeout(() => { this.isPlaying = false; window.dispatchEvent(new Event('mario-synth-ended')); }, 2800);
                 this.timeouts.push(timer);
             }
-
-            stop() {
-                this.timeouts.forEach(clearTimeout);
-                this.timeouts = [];
-                this.isPlaying = false;
-            }
+            stop() { this.timeouts.forEach(clearTimeout); this.timeouts = []; this.isPlaying = false; }
         }
-        
         const synth = new MarioSynth();
 
         const Header = ({ searchQuery, setSearchQuery, weather }) => {
             const [isPlaying, setIsPlaying] = useState(false);
-
             useEffect(() => {
                 const handleEnded = () => setIsPlaying(false);
                 window.addEventListener('mario-synth-ended', handleEnded);
                 return () => window.removeEventListener('mario-synth-ended', handleEnded);
             }, []);
-
-            const toggleMusic = () => {
-                if (isPlaying) {
-                    synth.stop();
-                    setIsPlaying(false);
-                } else {
-                    synth.playTheme();
-                    setIsPlaying(true);
-                }
-            };
+            const toggleMusic = () => { isPlaying ? synth.stop() : synth.playTheme(); setIsPlaying(!isPlaying); };
 
             return (
                 <header className="glass-panel sticky top-0 z-40 px-4 md:px-6 py-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 rounded-b-2xl mb-6">
@@ -182,32 +117,19 @@
                         <i className="ph-fill ph-calendar-blank text-3xl text-indigo-600"></i>
                         <h1 className="text-2xl font-bold text-gray-800">Mi Agenda 2026</h1>
                     </div>
-                    
                     <div className="flex-1 max-w-md w-full relative">
                         <i className="ph ph-magnifying-glass absolute left-3 top-3 text-gray-400 text-lg"></i>
-                        <input 
-                            type="text" 
-                            placeholder="Buscar eventos..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 bg-white/80 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                        />
+                        <input type="text" placeholder="Buscar eventos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 bg-white/80 focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
                     </div>
-
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
                             {weather.icon && <i className={`ph-fill ${weather.icon} text-xl ${weather.color}`}></i>}
                             <div className="flex flex-col leading-tight text-right">
-                                <span>{weather.temp}°C</span>
-                                <span className="text-[10px] text-gray-500 uppercase tracking-wider">Hermosillo</span>
+                                <span>{weather.temp}°C</span><span className="text-[10px] text-gray-500 uppercase">Hermosillo</span>
                             </div>
                         </div>
-
-                        <button 
-                            onClick={toggleMusic}
-                            className={`p-2 rounded-full shadow-md transition-all transform hover:scale-105 active:scale-95 ${isPlaying ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}
-                            title="Reproducir tema (Web Audio API)"
-                        >
+                        <button onClick={toggleMusic} className={`p-2 rounded-full shadow-md transition-all ${isPlaying ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}>
                             <i className={`text-2xl ph-fill ${isPlaying ? 'ph-speaker-high' : 'ph-music-notes'}`}></i>
                         </button>
                     </div>
@@ -217,24 +139,17 @@
 
         const Modal = ({ isOpen, onClose, date, events, title }) => {
             if (!isOpen) return null;
-
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="relative glass-panel bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 transform transition-all flex flex-col max-h-[80vh]">
+                    <div className="relative glass-panel bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 flex flex-col max-h-[80vh]">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold text-gray-800">{title || `Agenda: ${date}`}</h2>
-                            <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full transition-colors">
-                                <i className="ph ph-x text-xl"></i>
-                            </button>
+                            <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full"><i className="ph ph-x text-xl"></i></button>
                         </div>
-                        
                         <div className="flex-1 overflow-y-auto pr-2">
                             {events.length === 0 ? (
-                                <div className="text-center py-8 text-gray-500 flex flex-col items-center">
-                                    <i className="ph ph-coffee text-4xl mb-2"></i>
-                                    <p>No hay eventos registrados.</p>
-                                </div>
+                                <div className="text-center py-8 text-gray-500"><i className="ph ph-coffee text-4xl mb-2 block"></i>Libre</div>
                             ) : (
                                 <ul className="space-y-3">
                                     {events.map((ev, i) => (
@@ -245,7 +160,6 @@
                                                     <h3 className="font-bold text-gray-900">{ev.title}</h3>
                                                     {ev.description && <p className="text-sm text-gray-700 mt-1">{ev.description}</p>}
                                                 </div>
-                                                {!date && <span className="text-xs font-semibold bg-white/50 px-2 py-1 rounded-md">{ev.date}</span>}
                                             </div>
                                         </li>
                                     ))}
@@ -259,11 +173,8 @@
 
         const CalendarMonth = ({ monthInfo, events, onDayClick }) => {
             const { name, index, days, startDay } = monthInfo;
+            const emptyCells = Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="p-2 opacity-0"></div>);
             
-            const emptyCells = Array.from({ length: startDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="p-2 md:p-3 opacity-0"></div>
-            ));
-
             const dayCells = Array.from({ length: days }).map((_, i) => {
                 const dayNum = i + 1;
                 const dateStr = `2026-${String(index + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
@@ -271,266 +182,209 @@
                 const hasEvents = dayEvents.length > 0;
                 
                 return (
-                    <div 
-                        key={dateStr}
-                        onClick={() => onDayClick(dateStr, dayEvents)}
+                    <div key={dateStr} onClick={() => onDayClick(dateStr, dayEvents)}
                         style={hasEvents ? { backgroundColor: dayEvents[0].color } : {}}
-                        className={`aspect-square border border-gray-100 p-1 md:p-2 flex flex-col justify-between cursor-pointer rounded-xl transition-all hover:shadow-md hover:scale-105 ${hasEvents ? '' : 'bg-white hover:bg-indigo-50'}`}
-                    >
-                        <span className={`text-sm md:text-base font-semibold ${hasEvents ? 'text-gray-900' : 'text-gray-600'}`}>{dayNum}</span>
-                        <div className="flex flex-wrap gap-1 justify-end items-end overflow-hidden h-full">
-                            {dayEvents.map((ev, i) => i < 2 && ( 
-                                <span key={i} className="text-xs md:text-sm drop-shadow-sm">{ev.emoji}</span>
-                            ))}
-                            {dayEvents.length > 2 && <span className="text-[10px] font-bold text-gray-600">+{dayEvents.length - 2}</span>}
+                        className={`aspect-square border border-gray-100 p-1 flex flex-col justify-between cursor-pointer rounded-xl transition-all hover:scale-105 ${hasEvents ? 'shadow-sm' : 'bg-white hover:bg-indigo-50'}`}>
+                        <span className={`text-sm font-semibold ${hasEvents ? 'text-gray-900' : 'text-gray-600'}`}>{dayNum}</span>
+                        <div className="flex flex-wrap gap-1 justify-end items-end h-full">
+                            {dayEvents.map((ev, i) => i < 2 && <span key={i} className="text-xs">{ev.emoji}</span>)}
                         </div>
                     </div>
                 );
             });
 
             return (
-                <div className="glass-panel p-4 md:p-6 rounded-3xl flex flex-col">
-                    <h2 className="text-2xl font-black mb-4 text-gray-800 tracking-tight">{name} <span className="text-gray-400 font-normal">2026</span></h2>
-                    <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
-                        {WEEKDAYS.map(day => (
-                            <div key={day} className="text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{day}</div>
-                        ))}
+                <div className="glass-panel p-4 rounded-3xl flex flex-col">
+                    <h2 className="text-2xl font-black mb-4">{name} <span className="text-gray-400 font-normal">2026</span></h2>
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                        {WEEKDAYS.map(day => <div key={day} className="text-center text-xs font-bold text-gray-400">{day}</div>)}
                     </div>
-                    <div className="grid grid-cols-7 gap-1 md:gap-2 flex-1">
-                        {emptyCells}
-                        {dayCells}
-                    </div>
+                    <div className="grid grid-cols-7 gap-1 flex-1">{emptyCells}{dayCells}</div>
                 </div>
             );
         };
 
-        const EventProposals = () => {
-            const [proposals, setProposals] = useState([]);
+        const EventProposals = ({ proposals, onFetchProposals }) => {
             const [email, setEmail] = useState('');
             const [title, setTitle] = useState('');
             const [date, setDate] = useState('');
-            const [status, setStatus] = useState(''); // 'loading', 'success', 'error', ''
+            const [status, setStatus] = useState('');
             const [errorMessage, setErrorMessage] = useState('');
+            const [approvingId, setApprovingId] = useState(null);
 
-            const handleProposalSubmit = async (e) => {
+            const callApi = async (action, params) => {
+                const url = new URL(APP_SCRIPT_URL);
+                url.searchParams.append('action', action);
+                Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+                
+                const res = await fetch(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' } });
+                return await res.json();
+            };
+
+            const handleSubmit = async (e) => {
                 e.preventDefault();
-                setStatus('loading');
-                setErrorMessage('');
+                setStatus('loading'); setErrorMessage('');
 
-                if (!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
-                    setTimeout(() => {
-                        if (email === 'test@local.com') {
-                            setProposals([{ title, date, author: email }, ...proposals]);
-                            setTitle('');
-                            setDate('');
-                            setStatus('success');
-                        } else {
-                            setStatus('error');
-                            setErrorMessage("Simulación: Correo no autorizado. Usa 'test@local.com'");
-                        }
-                        setTimeout(() => setStatus(''), 3000);
-                    }, 800);
+                if (!APP_SCRIPT_URL) {
+                    setErrorMessage("Modo Local: Configura el link de Apps Script."); setStatus('error');
                     return;
                 }
-
                 try {
-                    // CONSTRUIMOS UNA URL GET SEGURA PARA EVITAR EL BLOQUEO CORS
-                    const url = new URL(APP_SCRIPT_URL);
-                    url.searchParams.append('email', email);
-                    url.searchParams.append('title', title);
-                    url.searchParams.append('date', date);
-
-                    // Enviamos usando GET
-                    const response = await fetch(url.toString(), {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    const data = await response.json();
-                    
+                    const data = await callApi('propose', { email, title, date });
                     if (data.result === 'success') {
-                        setProposals([{ title, date, author: email }, ...proposals]);
-                        setTitle('');
-                        setDate('');
-                        setStatus('success');
+                        setStatus('success'); setTitle(''); setDate('');
+                        onFetchProposals(); // Refrescar lista de propuestas
                     } else {
-                        setStatus('error');
-                        setErrorMessage(data.error || "El correo no tiene permisos.");
+                        setStatus('error'); setErrorMessage(data.error);
                     }
-                } catch (error) {
-                    console.error("Error al enviar propuesta:", error);
-                    setStatus('error');
-                    setErrorMessage(`Fallo de conexión. ¿Hiciste la 'Nueva Implementación' del Script?`);
-                }
-                
+                } catch (error) { setStatus('error'); setErrorMessage("Error de red."); }
                 setTimeout(() => setStatus(''), 5000);
+            };
+
+            const handleApprove = async (rowId) => {
+                if(!email) return alert("Ingresa tu correo arriba primero para poder aprobar.");
+                setApprovingId(rowId);
+                try {
+                    const data = await callApi('approve', { email, row: rowId });
+                    if (data.result === 'success') {
+                        onFetchProposals(); // Refrescar para ver el cambio
+                    } else {
+                        alert("Error: " + data.error);
+                    }
+                } catch (error) { alert("Fallo de conexión al aprobar."); }
+                setApprovingId(null);
             };
 
             return (
                 <div className="glass-panel p-6 rounded-3xl h-full flex flex-col">
-                    <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-                        <i className="ph-fill ph-lightbulb text-yellow-500"></i>
-                        Proponer Evento
-                    </h2>
-                    <p className="text-sm text-gray-600 mb-6">Solo usuarios autorizados pueden proponer nuevos eventos a la agenda.</p>
-
-                    <form onSubmit={handleProposalSubmit} className="space-y-4 mb-6">
+                    <h2 className="text-xl font-bold mb-2 flex items-center gap-2"><i className="ph-fill ph-lightbulb text-yellow-500"></i> Proponer Evento</h2>
+                    
+                    <form onSubmit={handleSubmit} className="space-y-3 mb-6">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Tu Correo Autorizado</label>
-                            <input 
-                                type="email" 
-                                required 
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="tu@correo.com"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                            />
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tu Correo (Sesión)</label>
+                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} placeholder="tucorreo@gmail.com" className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Título del evento</label>
-                            <input 
-                                type="text" 
-                                required 
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Ej: Posada Navideña"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                            />
+                            <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título del evento" className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Fecha Propuesta</label>
-                            <input 
-                                type="date" 
-                                required
-                                min="2026-08-01"
-                                max="2026-12-31"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                            />
+                            <input type="date" required min="2026-08-01" max="2026-12-31" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         
-                        {status === 'error' && (
-                            <div className="bg-red-100 text-red-700 p-3 rounded-lg text-sm font-medium">
-                                ❌ {errorMessage}
-                            </div>
-                        )}
-                        {status === 'success' && (
-                            <div className="bg-green-100 text-green-700 p-3 rounded-lg text-sm font-medium">
-                                ✅ ¡Propuesta enviada exitosamente!
-                            </div>
-                        )}
+                        {status === 'error' && <div className="bg-red-100 text-red-700 p-2 rounded-lg text-sm">❌ {errorMessage}</div>}
+                        {status === 'success' && <div className="bg-green-100 text-green-700 p-2 rounded-lg text-sm">✅ ¡Enviado para aprobación!</div>}
 
-                        <button 
-                            type="submit" 
-                            disabled={status === 'loading'}
-                            className="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 flex justify-center items-center gap-2"
-                        >
-                            {status === 'loading' ? (
-                                <><i className="ph ph-spinner animate-spin text-lg"></i> Enviando...</>
-                            ) : (
-                                "Enviar Propuesta"
-                            )}
+                        <button type="submit" disabled={status === 'loading'} className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400">
+                            {status === 'loading' ? 'Enviando...' : 'Proponer'}
                         </button>
                     </form>
 
                     <div className="flex-1 overflow-y-auto">
-                        <h3 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2">Propuestas Recientes</h3>
-                        {proposals.length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4">No hay propuestas aún en esta sesión.</p>
-                        ) : (
-                            <ul className="space-y-3">
-                                {proposals.map((prop, idx) => (
-                                    <li key={idx} className="bg-white/60 p-3 rounded-lg border border-gray-100 text-sm">
-                                        <div className="font-semibold text-gray-800">{prop.title}</div>
-                                        <div className="text-xs text-gray-500 flex justify-between mt-1">
-                                            <span>📅 {prop.date}</span>
-                                            <span className="truncate ml-2" title={prop.author}>👤 {prop.author.split('@')[0]}</span>
+                        <h3 className="text-sm font-bold border-b pb-2 mb-3 flex justify-between">
+                            Tablero de Propuestas
+                            <button onClick={onFetchProposals} title="Actualizar" className="text-indigo-600 hover:text-indigo-800"><i className="ph ph-arrows-clockwise"></i></button>
+                        </h3>
+                        
+                        <ul className="space-y-3">
+                            {proposals.map((prop, idx) => (
+                                <li key={idx} className={`p-3 rounded-lg border text-sm ${prop.status === 'Aprobado' ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
+                                    <div className="font-bold">{prop.title}</div>
+                                    <div className="text-xs text-gray-500 mb-2">📅 {prop.date} | 👤 {prop.author.split('@')[0]}</div>
+                                    
+                                    {prop.status === 'Pendiente' ? (
+                                        email && prop.author.toLowerCase() !== email ? (
+                                            <button onClick={() => handleApprove(prop.row)} disabled={approvingId === prop.row} className="w-full bg-emerald-500 text-white text-xs py-1.5 rounded font-bold hover:bg-emerald-600">
+                                                {approvingId === prop.row ? 'Procesando...' : '✅ Aprobar Evento'}
+                                            </button>
+                                        ) : (
+                                            <div className="text-xs text-orange-500 font-semibold bg-orange-50 p-1.5 rounded text-center border border-orange-100">
+                                                ⏳ Esperando aprobación
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="text-xs text-emerald-600 font-bold bg-emerald-100/50 p-1.5 rounded text-center">
+                                            🎉 Evento Aprobado
                                         </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             );
         };
 
         const App = () => {
-            const [events, setEvents] = useState([]);
+            const [baseEvents, setBaseEvents] = useState([]);
+            const [proposals, setProposals] = useState([]); // Guardamos las propuestas desde la base de datos
             const [searchQuery, setSearchQuery] = useState('');
             const [modalConfig, setModalConfig] = useState({ isOpen: false, date: null, events: [], title: '' });
             const [weather, setWeather] = useState({ temp: '--', icon: null, color: 'text-gray-500' });
 
+            // 1. Cargar CSV
             useEffect(() => {
-                const fetchEvents = async () => {
-                    try {
-                        if (!GOOGLE_SHEETS_CSV_URL) throw new Error("No URL");
-                        const res = await fetch(GOOGLE_SHEETS_CSV_URL);
-                        const text = await res.text();
-                        setEvents(parseCSV(text));
-                    } catch (e) {
-                        console.log("Usando datos locales de prueba");
-                        setEvents(parseCSV(MOCK_CSV_DATA));
-                    }
-                };
-                fetchEvents();
+                fetch(GOOGLE_SHEETS_CSV_URL)
+                    .then(res => res.text())
+                    .then(text => setBaseEvents(parseCSV(text)))
+                    .catch(() => setBaseEvents(parseCSV(MOCK_CSV_DATA)));
             }, []);
 
+            // 2. Cargar Propuestas de Apps Script
+            const fetchProposals = async () => {
+                if (!APP_SCRIPT_URL) return;
+                try {
+                    const url = new URL(APP_SCRIPT_URL);
+                    url.searchParams.append('action', 'read');
+                    const res = await fetch(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' }});
+                    const data = await res.json();
+                    if (data.result === 'success') setProposals(data.data);
+                } catch (e) { console.error("No se pudieron cargar propuestas", e); }
+            };
+            useEffect(() => { fetchProposals(); }, []);
+
+            // 3. Cargar Clima
             useEffect(() => {
-                const fetchWeather = async () => {
-                    try {
-                        // Coordenadas de Hermosillo, Sonora
-                        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true");
-                        const data = await res.json();
+                fetch("https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true")
+                    .then(res => res.json())
+                    .then(data => {
                         const code = data.current_weather.weathercode;
                         const temp = Math.round(data.current_weather.temperature);
-                        
-                        let icon = "ph-sun"; let color = "text-yellow-500"; let bg = "bg-blue-50";
+                        let icon = "ph-sun", color = "text-yellow-500", bg = "bg-blue-50";
                         if (code >= 1 && code <= 3) { icon = "ph-cloud-sun"; color = "text-gray-400"; bg = "bg-gray-100"; }
                         else if (code >= 51 && code <= 67) { icon = "ph-cloud-rain"; color = "text-blue-500"; bg = "bg-blue-100"; }
                         else if (code >= 71) { icon = "ph-snowflake"; color = "text-cyan-500"; bg = "bg-cyan-50"; }
                         else if (code >= 95) { icon = "ph-cloud-lightning"; color = "text-purple-500"; bg = "bg-slate-200"; }
-
                         setWeather({ temp, icon, color });
                         document.getElementById('body-bg').className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bg}`;
-                    } catch (e) {
-                        console.error("Error al obtener el clima");
-                    }
-                };
-                fetchWeather();
+                    }).catch(() => {});
             }, []);
 
+            // 4. MEZCLAR EVENTOS (CSV + Propuestas Aprobadas)
+            const allEvents = useMemo(() => {
+                const approvedEvents = proposals
+                    .filter(p => p.status === 'Aprobado')
+                    .map(p => ({
+                        date: p.date,
+                        title: p.title,
+                        description: `Propuesto por: ${p.author.split('@')[0]}`,
+                        color: "#bbf7d0", // Verde clarito para aprobados
+                        emoji: "✨"
+                    }));
+                
+                return [...baseEvents, ...approvedEvents];
+            }, [baseEvents, proposals]);
+
+            // 5. Filtrar por búsqueda
             const filteredEvents = useMemo(() => {
-                if (!searchQuery) return events;
+                if (!searchQuery) return allEvents;
                 const lowerQ = searchQuery.toLowerCase();
-                return events.filter(e => 
-                    e.title.toLowerCase().includes(lowerQ) || 
-                    e.description.toLowerCase().includes(lowerQ)
-                );
-            }, [events, searchQuery]);
-
-            const handleDayClick = (date, dayEvents) => {
-                setModalConfig({ isOpen: true, date, events: dayEvents, title: `Agenda: ${date}` });
-            };
-
-            const openSearchResults = () => {
-                setModalConfig({ isOpen: true, date: null, events: filteredEvents, title: `Resultados de: "${searchQuery}"` });
-            };
+                return allEvents.filter(e => e.title.toLowerCase().includes(lowerQ) || e.description.toLowerCase().includes(lowerQ));
+            }, [allEvents, searchQuery]);
 
             return (
                 <div className="max-w-7xl mx-auto px-4 md:px-8 pb-12">
                     <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} weather={weather} />
                     
-                    {searchQuery && (
-                        <div className="mb-6 p-4 glass-panel rounded-xl flex justify-between items-center">
-                            <span>Encontramos <strong>{filteredEvents.length}</strong> eventos para "{searchQuery}"</span>
-                            <button onClick={openSearchResults} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">Ver resultados</button>
-                        </div>
-                    )}
-
                     <div className="flex flex-col lg:flex-row gap-6">
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
                             {MONTHS.map(month => (
@@ -538,23 +392,16 @@
                                     key={month.name} 
                                     monthInfo={month} 
                                     events={filteredEvents} 
-                                    onDayClick={handleDayClick}
+                                    onDayClick={(date, evs) => setModalConfig({ isOpen: true, date, events: evs })}
                                 />
                             ))}
                         </div>
-                        
                         <div className="w-full lg:w-96 flex-shrink-0">
-                            <EventProposals />
+                            <EventProposals proposals={proposals} onFetchProposals={fetchProposals} />
                         </div>
                     </div>
 
-                    <Modal 
-                        isOpen={modalConfig.isOpen} 
-                        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} 
-                        date={modalConfig.date} 
-                        events={modalConfig.events} 
-                        title={modalConfig.title}
-                    />
+                    <Modal {...modalConfig} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} />
                 </div>
             );
         };
