@@ -289,7 +289,8 @@
                             {proposals.map((prop, idx) => (
                                 <li key={idx} className={`p-3 rounded-lg border text-sm ${prop.status === 'Aprobado' ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
                                     <div className="font-bold">{prop.title}</div>
-                                    <div className="text-xs text-gray-500 mb-2">📅 {prop.date} | 👤 {prop.author.split('@')[0]}</div>
+                                    {}
+                                    <div className="text-xs text-gray-500 mb-2">📅 {String(prop.date).substring(0, 10)} | 👤 {prop.author.split('@')[0]}</div>
                                     
                                     {prop.status === 'Pendiente' ? (
                                         email && prop.author.toLowerCase() !== email ? (
@@ -364,7 +365,7 @@
                 const approvedEvents = proposals
                     .filter(p => p.status === 'Aprobado')
                     .map(p => ({
-                        date: p.date,
+                        date: String(p.date).substring(0, 10), // <- Magia aquí: recorta el timestamp extra de Google
                         title: p.title,
                         description: `Propuesto por: ${p.author.split('@')[0]}`,
                         color: "#bbf7d0", // Verde clarito para aprobados
