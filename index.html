@@ -40,10 +40,10 @@
         const { useState, useEffect, useMemo, useRef } = React;
 
         // URL del CSV de Google Sheets (Reemplazar con tu URL de lectura pública)
-        const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pubhtml"; 
+        const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
         
         // URL del Google Apps Script para guardar las propuestas
-        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwV_iPBC0J4S05FaHzZQiBNqwTyKIuuldWpUEUH1UCWWwd-WNm38wfep8IAWLRiTlyU/exec";
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxtoo_vRUiERitsQggaR5xhyIcTcY4FE5QCT7hJyVWBsuZlDmF0EEatoVCM1H67jgFm/exec";
 
         // Datos de prueba con colores en HEX
         const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji
@@ -320,26 +320,30 @@
                         return;
                     }
 
-                    // Envío real con URLSearchParams para evitar errores de CORS
-                    const formBody = new URLSearchParams();
-                    formBody.append('title', newProposal.title);
-                    formBody.append('date', newProposal.date);
-                    formBody.append('email', newProposal.email);
+                    // Validación rápida para evitar confusiones de URL
+                    if (!APP_SCRIPT_URL.includes("script.google.com")) {
+                        throw new Error("La URL de APP_SCRIPT_URL parece incorrecta.\nAsegúrate de usar el link de la 'Aplicación Web' que termina en '/exec' y NO el link de tu Google Sheet.");
+                    }
 
+                    // Envío real con FormData puro para EVITAR el bloqueo de CORS del navegador
+                    const formData = new FormData();
+                    formData.append('title', newProposal.title);
+                    formData.append('date', newProposal.date);
+                    formData.append('email', newProposal.email);
+
+                    // Hacemos el fetch SIN el bloque de 'headers' explícito
                     const res = await fetch(APP_SCRIPT_URL, {
                         method: 'POST',
-                        body: formBody,
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        }
+                        body: formData
                     });
                     
                     const textResponse = await res.text();
+                    
                     let data;
                     try {
                         data = JSON.parse(textResponse);
                     } catch (parseError) {
-                        throw new Error("Respuesta no válida del servidor: " + textResponse.substring(0, 100));
+                        throw new Error("Respuesta no válida del servidor. El script no está devolviendo JSON.\n\nRespuesta: " + textResponse.substring(0, 80) + "...");
                     }
                     
                     if (data.result === 'success') {
@@ -351,7 +355,7 @@
                     }
                 } catch (error) {
                     console.error("Error completo:", error);
-                    alert("❌ Hubo un error de conexión.\n\nDetalles: " + error.message);
+                    alert("❌ Hubo un error de conexión.\n\nDetalle: " + error.message);
                 } finally {
                     setIsSubmitting(false);
                 }
