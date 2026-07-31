@@ -39,10 +39,13 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-       // URL del CSV de Google Sheets (Reemplazar con tu URL)
-        const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
+        // URL del CSV de Google Sheets (Reemplazar con tu URL de lectura pública)
+        const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pubhtml"; 
+        
+        // URL del Google Apps Script para guardar las propuestas
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwV_iPBC0J4S05FaHzZQiBNqwTyKIuuldWpUEUH1UCWWwd-WNm38wfep8IAWLRiTlyU/exec";
 
-        // Datos de prueba (Fallback si no hay URL de Google Sheets)
+        // Datos de prueba con colores en HEX
         const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji
 2026-08-01,Inicio de mes,Planear objetivos,#bfdbfe,🚀
 2026-08-15,Cena con amigos,Restaurante en el centro a las 8pm,#fef08a,🌮
@@ -55,11 +58,11 @@
 2026-10-12,Cita Médica,Chequeo general 10:00 AM,#bfdbfe,🩺`;
 
         const MONTHS = [
-            { name: "Agosto", index: 7, days: 31, startDay: 6 }, // 1 de Ago 2026 es Sábado (0=Dom, 6=Sab)
-            { name: "Septiembre", index: 8, days: 30, startDay: 2 }, // 1 de Sep 2026 es Martes
-            { name: "Octubre", index: 9, days: 31, startDay: 4 }, // 1 de Oct 2026 es Jueves
-            { name: "Noviembre", index: 10, days: 30, startDay: 0 }, // 1 de Nov 2026 es Domingo
-            { name: "Diciembre", index: 11, days: 31, startDay: 2 }, // 1 de Dic 2026 es Martes
+            { name: "Agosto", index: 7, days: 31, startDay: 6 }, 
+            { name: "Septiembre", index: 8, days: 30, startDay: 2 }, 
+            { name: "Octubre", index: 9, days: 31, startDay: 4 }, 
+            { name: "Noviembre", index: 10, days: 30, startDay: 0 }, 
+            { name: "Diciembre", index: 11, days: 31, startDay: 2 }, 
         ];
         const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
@@ -68,16 +71,15 @@
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
             
             return lines.slice(1).map(line => {
-                // Regex simple para parsear CSV ignorando comas dentro de comillas si las hubiera
                 const values = line.split(','); 
                 return {
                     date: values[0]?.trim(),
                     title: values[1]?.trim(),
                     description: values[2]?.trim() || "",
-                    color: values[3]?.trim() || "#e5e7eb", // Valor HEX por defecto (gris)
+                    color: values[3]?.trim() || "#e5e7eb", // Fallback a gris en hex
                     emoji: values[4]?.trim() || "📌"
                 };
-            }).filter(event => event.date); // Filtrar filas vacías
+            }).filter(event => event.date);
         };
 
         class MarioSynth {
@@ -98,15 +100,14 @@
                 const osc = this.audioCtx.createOscillator();
                 const gain = this.audioCtx.createGain();
                 
-                osc.type = 'square'; // Sonido retro 8-bits
+                osc.type = 'square'; 
                 osc.frequency.value = frequency;
                 
                 osc.connect(gain);
                 gain.connect(this.audioCtx.destination);
                 
-                // Envolvente de volumen (Attack, Decay)
                 gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05); // Volumen bajo
+                gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05); 
                 gain.gain.setValueAtTime(0.1, startTime + duration - 0.05);
                 gain.gain.linearRampToValueAtTime(0, startTime + duration);
                 
@@ -121,10 +122,7 @@
                 }
                 this.isPlaying = true;
 
-                // Frecuencias para la melodía de Mario
                 const E5 = 659.25, C5 = 523.25, G5 = 783.99, G4 = 392.00;
-                
-                // Secuencia { nota, duración, tiempo de inicio }
                 const notes = [
                     { f: E5, d: 0.15, t: 0.0 },
                     { f: E5, d: 0.15, t: 0.3 },
@@ -140,10 +138,8 @@
                     this.playNote(n.f, now + n.t, n.d);
                 });
 
-                // Reiniciar estado después de la melodía
                 const timer = setTimeout(() => {
                     this.isPlaying = false;
-                    // Disparar evento para actualizar UI
                     window.dispatchEvent(new Event('mario-synth-ended'));
                 }, 2800);
                 this.timeouts.push(timer);
@@ -196,7 +192,6 @@
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Indicador de Clima Hermosillo */}
                         <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
                             {weather.icon && <i className={`ph-fill ${weather.icon} text-xl ${weather.color}`}></i>}
                             <div className="flex flex-col leading-tight text-right">
@@ -205,7 +200,6 @@
                             </div>
                         </div>
 
-                        {/* Botón Web Audio API */}
                         <button 
                             onClick={toggleMusic}
                             className={`p-2 rounded-full shadow-md transition-all transform hover:scale-105 active:scale-95 ${isPlaying ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}
@@ -248,7 +242,6 @@
                                                     <h3 className="font-bold text-gray-900">{ev.title}</h3>
                                                     {ev.description && <p className="text-sm text-gray-700 mt-1">{ev.description}</p>}
                                                 </div>
-                                                {/* Mostrar fecha si es una lista de búsqueda */}
                                                 {!date && <span className="text-xs font-semibold bg-white/50 px-2 py-1 rounded-md">{ev.date}</span>}
                                             </div>
                                         </li>
@@ -264,17 +257,13 @@
         const CalendarMonth = ({ monthInfo, events, onDayClick }) => {
             const { name, index, days, startDay } = monthInfo;
             
-            // Generar celdas vacías para el desfase del primer día
             const emptyCells = Array.from({ length: startDay }).map((_, i) => (
                 <div key={`empty-${i}`} className="p-2 md:p-3 opacity-0"></div>
             ));
 
             const dayCells = Array.from({ length: days }).map((_, i) => {
                 const dayNum = i + 1;
-                // Formatear a YYYY-MM-DD
                 const dateStr = `2026-${String(index + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                
-                // Buscar eventos para este día
                 const dayEvents = events.filter(e => e.date === dateStr);
                 const hasEvents = dayEvents.length > 0;
                 
@@ -287,7 +276,7 @@
                     >
                         <span className={`text-sm md:text-base font-semibold ${hasEvents ? 'text-gray-900' : 'text-gray-600'}`}>{dayNum}</span>
                         <div className="flex flex-wrap gap-1 justify-end items-end overflow-hidden h-full">
-                            {dayEvents.map((ev, i) => i < 2 && ( // Mostrar máximo 2 emojis en la celda
+                            {dayEvents.map((ev, i) => i < 2 && ( 
                                 <span key={i} className="text-xs md:text-sm drop-shadow-sm">{ev.emoji}</span>
                             ))}
                             {dayEvents.length > 2 && <span className="text-[10px] font-bold text-gray-600">+{dayEvents.length - 2}</span>}
@@ -312,258 +301,229 @@
             );
         };
 
+        const EventProposals = () => {
+            const [proposals, setProposals] = useState([]);
+            const [newProposal, setNewProposal] = useState({ title: '', date: '', email: '' });
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            const handleProposalSubmit = async (e) => {
+                e.preventDefault();
+                setIsSubmitting(true);
+
+                try {
+                    // Modo simulación si no hay URL configurada
+                    if (!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
+                        alert("⚠️ MODO SIMULACIÓN:\nNo has configurado la URL de Google Apps Script.\nSimulando envío exitoso para: " + newProposal.email);
+                        setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
+                        setNewProposal({ title: '', date: '', email: '' });
+                        setIsSubmitting(false);
+                        return;
+                    }
+
+                    // Envío real con URLSearchParams para evitar errores de CORS
+                    const formBody = new URLSearchParams();
+                    formBody.append('title', newProposal.title);
+                    formBody.append('date', newProposal.date);
+                    formBody.append('email', newProposal.email);
+
+                    const res = await fetch(APP_SCRIPT_URL, {
+                        method: 'POST',
+                        body: formBody,
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        }
+                    });
+                    
+                    const textResponse = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(textResponse);
+                    } catch (parseError) {
+                        throw new Error("Respuesta no válida del servidor: " + textResponse.substring(0, 100));
+                    }
+                    
+                    if (data.result === 'success') {
+                        setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
+                        setNewProposal({ title: '', date: '', email: '' });
+                        alert("✅ ¡Propuesta enviada y autorizada con éxito!");
+                    } else {
+                        alert("❌ Error: " + data.error);
+                    }
+                } catch (error) {
+                    console.error("Error completo:", error);
+                    alert("❌ Hubo un error de conexión.\n\nDetalles: " + error.message);
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            return (
+                <div className="glass-panel p-6 rounded-3xl flex flex-col h-full">
+                    <div className="flex items-center gap-2 mb-4">
+                        <i className="ph-fill ph-lightbulb text-2xl text-yellow-500"></i>
+                        <h2 className="text-xl font-bold text-gray-800">Proponer Eventos</h2>
+                    </div>
+                    
+                    <form onSubmit={handleProposalSubmit} className="flex flex-col gap-3 mb-6 bg-white/50 p-4 rounded-xl shadow-sm border border-white">
+                        <p className="text-xs text-gray-500 mb-1">Solo los correos autorizados pueden proponer.</p>
+                        
+                        <input 
+                            type="email" 
+                            placeholder="Tu correo de Google..." 
+                            value={newProposal.email}
+                            onChange={e => setNewProposal({...newProposal, email: e.target.value.trim()})}
+                            required
+                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                        
+                        <input 
+                            type="text" 
+                            placeholder="Nombre del evento (ej. Posada)" 
+                            value={newProposal.title}
+                            onChange={e => setNewProposal({...newProposal, title: e.target.value})}
+                            required
+                            className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                        
+                        <input 
+                            type="date" 
+                            value={newProposal.date}
+                            onChange={e => setNewProposal({...newProposal, date: e.target.value})}
+                            required
+                            min="2026-08-01"
+                            max="2026-12-31"
+                            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                        
+                        <button 
+                            type="submit" 
+                            disabled={isSubmitting}
+                            className={`mt-2 py-2 px-4 rounded-lg font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
+                        >
+                            {isSubmitting ? (
+                                <><i className="ph ph-spinner animate-spin"></i> Enviando...</>
+                            ) : (
+                                'Enviar Propuesta'
+                            )}
+                        </button>
+                    </form>
+
+                    <h3 className="font-semibold text-gray-700 mb-2">Propuestas Recientes:</h3>
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-2 min-h-[150px]">
+                        {proposals.length === 0 ? (
+                            <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50/50 rounded-lg">Aún no has añadido propuestas.</p>
+                        ) : (
+                            proposals.map((prop, i) => (
+                                <div key={prop.id || i} className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-shadow">
+                                    <span className="font-bold text-sm text-gray-800">{prop.title}</span>
+                                    <div className="flex justify-between items-center mt-2 text-xs">
+                                        <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded-md">📅 {prop.date}</span>
+                                        <span className="text-gray-500 truncate max-w-[120px]" title={prop.author}>👤 {prop.author}</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [events, setEvents] = useState([]);
             const [weather, setWeather] = useState({ temp: '--', icon: 'ph-sun', color: 'text-yellow-500', bgClass: 'bg-gradient-to-br from-blue-100 to-indigo-100' });
             const [searchQuery, setSearchQuery] = useState('');
             const [modalData, setModalData] = useState({ isOpen: false, date: null, events: [], title: '' });
 
-            // Cargar Clima de Hermosillo
+            // Cargar Clima de Hermosillo dinámicamente
             useEffect(() => {
                 const fetchWeather = async () => {
                     try {
-                        // Coordenadas de Hermosillo, Sonora
-                        const lat = 29.0892;
-                        const lon = -110.9613;
-                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true');
                         const data = await res.json();
                         
-                        if (data.current_weather) {
-                            const temp = Math.round(data.current_weather.temperature);
-                            const code = data.current_weather.weathercode;
-                            
-                            // Mapear WMO Weather code a iconos y fondos
-                            let icon = 'ph-sun';
-                            let color = 'text-yellow-500';
-                            let bgClass = 'bg-gradient-to-br from-blue-100 to-indigo-100'; // Soleado por defecto
-                            
-                            if (code >= 1 && code <= 3) {
-                                icon = 'ph-cloud-sun';
-                                color = 'text-gray-500';
-                                bgClass = 'bg-gradient-to-br from-gray-200 to-blue-200'; // Nublado
-                            } else if (code >= 51 && code <= 67 || code >= 80 && code <= 82) {
-                                icon = 'ph-cloud-rain';
-                                color = 'text-blue-500';
-                                bgClass = 'bg-gradient-to-br from-slate-400 to-blue-300'; // Lluvia
-                            } else if (code >= 95) {
-                                icon = 'ph-cloud-lightning';
-                                color = 'text-purple-500';
-                                bgClass = 'bg-gradient-to-br from-gray-700 to-slate-500'; // Tormenta
-                            }
-                            
-                            setWeather({ temp, icon, color, bgClass });
-                            // Aplicar fondo al body
-                            document.body.className = `min-h-screen text-slate-800 ${bgClass}`;
+                        const temp = Math.round(data.current_weather.temperature);
+                        const code = data.current_weather.weathercode;
+                        
+                        let icon = 'ph-sun';
+                        let color = 'text-yellow-500';
+                        let bgClass = 'bg-gradient-to-br from-blue-100 to-amber-100';
+
+                        if (code >= 1 && code <= 3) {
+                            icon = 'ph-cloud-sun'; color = 'text-gray-400'; bgClass = 'bg-gradient-to-br from-gray-100 to-blue-50';
+                        } else if (code >= 45 && code <= 48) {
+                            icon = 'ph-cloud'; color = 'text-gray-500'; bgClass = 'bg-gradient-to-br from-gray-200 to-gray-300';
+                        } else if (code >= 51) {
+                            icon = 'ph-cloud-rain'; color = 'text-blue-500'; bgClass = 'bg-gradient-to-br from-slate-200 to-blue-200';
                         }
+
+                        setWeather({ temp, icon, color, bgClass });
+                        document.body.className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bgClass}`;
                     } catch (error) {
-                        console.error("Error fetching weather:", error);
+                        console.error("No se pudo cargar el clima", error);
+                        document.body.className = "min-h-screen text-slate-800 bg-gray-100";
                     }
                 };
                 fetchWeather();
             }, []);
 
-            // Cargar Eventos (Sheets o Mock)
+            // Cargar datos CSV al iniciar
             useEffect(() => {
-                const loadEvents = async () => {
-                    try {
-                        let csvText = "";
-                        if (GOOGLE_SHEETS_CSV_URL) {
-                            const res = await fetch(GOOGLE_SHEETS_CSV_URL);
-                            if (res.ok) {
-                                csvText = await res.text();
-                            } else {
-                                throw new Error("No se pudo cargar la URL, usando datos de prueba.");
-                            }
-                        } else {
-                            csvText = MOCK_CSV_DATA;
-                        }
-                        
-                        const parsedEvents = parseCSV(csvText);
-                        setEvents(parsedEvents);
-                    } catch (error) {
-                        console.warn(error);
-                        setEvents(parseCSV(MOCK_CSV_DATA)); // Fallback
-                    }
-                };
-                loadEvents();
+                if (GOOGLE_SHEETS_CSV_URL && GOOGLE_SHEETS_CSV_URL.trim() !== "") {
+                    fetch(GOOGLE_SHEETS_CSV_URL)
+                        .then(response => response.text())
+                        .then(text => setEvents(parseCSV(text)))
+                        .catch(err => {
+                            console.error("Error cargando CSV, usando datos de prueba", err);
+                            setEvents(parseCSV(MOCK_CSV_DATA));
+                        });
+                } else {
+                    setEvents(parseCSV(MOCK_CSV_DATA));
+                }
             }, []);
 
             // Filtrar eventos por búsqueda
             const filteredEvents = useMemo(() => {
-                if (!searchQuery.trim()) return [];
-                const query = searchQuery.toLowerCase();
-                return events.filter(ev => 
-                    ev.title.toLowerCase().includes(query) || 
-                    ev.description.toLowerCase().includes(query) ||
-                    ev.date.includes(query)
+                if (!searchQuery) return null;
+                return events.filter(e => 
+                    e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                    e.description.toLowerCase().includes(searchQuery.toLowerCase())
                 );
-            }, [searchQuery, events]);
+            }, [events, searchQuery]);
 
-            // Efecto para abrir modal de búsqueda automáticamente si hay query
+            // Efecto para abrir modal automáticamente si hay búsqueda
             useEffect(() => {
-                if (searchQuery.trim()) {
+                if (searchQuery && filteredEvents && filteredEvents.length > 0) {
                     setModalData({
                         isOpen: true,
                         date: null,
                         events: filteredEvents,
                         title: `Resultados para "${searchQuery}"`
                     });
-                } else if (modalData.title.startsWith("Resultados")) {
-                    // Cerrar si borran la búsqueda y estaban en modo búsqueda
-                    setModalData(prev => ({ ...prev, isOpen: false }));
+                } else if (searchQuery && filteredEvents && filteredEvents.length === 0) {
+                     setModalData({
+                        isOpen: true,
+                        date: null,
+                        events: [],
+                        title: `Sin resultados`
+                    });
+                } else {
+                    setModalData(prev => ({...prev, isOpen: false}));
                 }
             }, [searchQuery, filteredEvents]);
 
             const handleDayClick = (dateStr, dayEvents) => {
-                // Formatear fecha bonita
-                const dateObj = new Date(dateStr + 'T00:00:00');
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                const prettyDate = dateObj.toLocaleDateString('es-ES', options);
-
-                setSearchQuery(''); // Limpiar búsqueda si hacen click en un día
+                setSearchQuery(''); 
                 setModalData({
                     isOpen: true,
                     date: dateStr,
                     events: dayEvents,
-                    title: prettyDate.charAt(0).toUpperCase() + prettyDate.slice(1)
+                    title: `Agenda: ${dateStr}`
                 });
             };
 
             const closeModal = () => {
-                setModalData(prev => ({ ...prev, isOpen: false }));
-                if (searchQuery) setSearchQuery('');
-            };
-
-            // Componente de Propuestas de Eventos
-            const EventProposals = () => {
-                const [proposals, setProposals] = useState([]);
-                const [newProposal, setNewProposal] = useState({ title: '', date: '', email: '' });
-                const [isSubmitting, setIsSubmitting] = useState(false);
-                
-                // PEGA TU NUEVA URL AQUÍ: (Asegúrate de que sea la de tu nueva implementación)
-                const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwb3NcGW1Juf2rxXLVWU4P7580zb2SdHRORFRJyzMBS05_TyClFlW74JnqevTmKxvjn/exec"; 
-
-                const handleProposalSubmit = async (e) => {
-                    e.preventDefault();
-                    if(!newProposal.title || !newProposal.date || !newProposal.email) return;
-
-                    setIsSubmitting(true);
-
-                    // CORRECCIÓN: Solo entra en simulación si la URL está vacía.
-                    if(!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
-                        setTimeout(() => {
-                            if (newProposal.email === 'test@local.com') {
-                                setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
-                                alert("Simulación: Propuesta guardada.");
-                            } else {
-                                alert("Simulación: Correo no autorizado (Usa test@local.com)");
-                            }
-                            setIsSubmitting(false);
-                        }, 800);
-                        return;
-                    }
-
-                    try {
-                        // Usamos URLSearchParams para asegurar compatibilidad con Google Apps Script
-                        const params = new URLSearchParams();
-                        params.append('title', newProposal.title);
-                        params.append('date', newProposal.date);
-                        params.append('email', newProposal.email);
-
-                        const res = await fetch(APP_SCRIPT_URL, {
-                            method: 'POST',
-                            body: params,
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded'
-                            }
-                        });
-                        
-                        const data = await res.json();
-                        
-                        if (data.result === 'success') {
-                            setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
-                            setNewProposal({ title: '', date: '', email: '' });
-                            alert("✅ ¡Propuesta enviada y guardada en Google Sheets!");
-                        } else {
-                            alert("❌ Error: " + data.error);
-                        }
-                    } catch (error) {
-                        console.error("Error enviando propuesta:", error);
-                        alert("❌ Hubo un error de conexión. Verifica la URL de tu Script.");
-                    } finally {
-                        setIsSubmitting(false);
-                    }
-                };
-
-                return (
-                    <div className="glass-panel p-6 rounded-3xl flex flex-col h-full">
-                        <div className="flex items-center gap-2 mb-4">
-                            <i className="ph-fill ph-lightbulb text-2xl text-yellow-500"></i>
-                            <h2 className="text-xl font-bold text-gray-800">Proponer Eventos</h2>
-                        </div>
-                        
-                        <form onSubmit={handleProposalSubmit} className="flex flex-col gap-3 mb-6 bg-white/50 p-4 rounded-xl shadow-sm border border-white">
-                            <p className="text-xs text-gray-500 mb-1">Solo usuarios autorizados pueden proponer.</p>
-                            
-                            <input 
-                                type="email" 
-                                placeholder="Tu correo autorizado" 
-                                value={newProposal.email}
-                                onChange={e => setNewProposal({...newProposal, email: e.target.value.trim()})}
-                                required
-                                className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                            />
-                            
-                            <input 
-                                type="text" 
-                                placeholder="Nombre del evento (ej. Posada)" 
-                                value={newProposal.title}
-                                onChange={e => setNewProposal({...newProposal, title: e.target.value})}
-                                required
-                                className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                            />
-                            
-                            <input 
-                                type="date" 
-                                value={newProposal.date}
-                                onChange={e => setNewProposal({...newProposal, date: e.target.value})}
-                                required
-                                min="2026-08-01"
-                                max="2026-12-31"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                            />
-                            
-                            <button 
-                                type="submit" 
-                                disabled={isSubmitting}
-                                className={`mt-2 py-2 px-4 rounded-lg font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 ${isSubmitting ? 'bg-indigo-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'}`}
-                            >
-                                {isSubmitting ? (
-                                    <><i className="ph ph-spinner animate-spin"></i> Enviando...</>
-                                ) : (
-                                    'Enviar Propuesta'
-                                )}
-                            </button>
-                        </form>
-
-                        <h3 className="font-semibold text-gray-700 mb-2">Propuestas Añadidas:</h3>
-                        <div className="flex-1 overflow-y-auto pr-2 space-y-2 min-h-[150px]">
-                            {proposals.length === 0 ? (
-                                <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50/50 rounded-lg">Aún no has añadido propuestas en esta sesión.</p>
-                            ) : (
-                                proposals.map((prop, i) => (
-                                    <div key={prop.id || i} className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-shadow">
-                                        <span className="font-bold text-sm text-gray-800">{prop.title}</span>
-                                        <div className="flex justify-between items-center mt-2 text-xs">
-                                            <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded-md">📅 {prop.date}</span>
-                                            <span className="text-gray-500 truncate max-w-[120px]" title={prop.author}>👤 {prop.author}</span>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                );
+                setSearchQuery('');
+                setModalData({...modalData, isOpen: false});
             };
 
             return (
@@ -572,7 +532,7 @@
                     
                     <main className="px-4 py-8">
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                            {/* Calendario: Ocupa 3 columnas en pantallas grandes */}
+                            {/* Panel de Calendario */}
                             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {MONTHS.map(monthInfo => (
                                     <CalendarMonth 
@@ -583,7 +543,6 @@
                                     />
                                 ))}
                                 
-                                {/* Panel informativo movido al final del calendario */}
                                 <div className="glass-panel p-6 rounded-3xl flex flex-col justify-center items-center text-center">
                                     <div className="w-20 h-20 bg-white/60 rounded-full flex items-center justify-center mb-4 shadow-inner">
                                         <i className="ph-fill ph-file-csv text-4xl text-green-600"></i>
@@ -596,7 +555,7 @@
                                 </div>
                             </div>
                             
-                            {/* Panel de Propuestas (Derecha): Ocupa 1 columna */}
+                            {/* Panel Lateral */}
                             <div className="lg:col-span-1 flex flex-col">
                                 <EventProposals />
                             </div>
