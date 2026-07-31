@@ -46,7 +46,7 @@
         const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
         
         // URL del Google Apps Script para guardar las propuestas
-        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwgfwtq4f_Xg8biTomsQNTDL9kyQYGcvEQuFiw548TNaxuhWZQBurArL_jyqdx63RUx/exec";
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxKH1h5WNxEg6fhgGzMtnMtA_fy-yJZETks8TtLpzHs36NZrhFCelCFIazJagILpGkO/exec";
 
         // Datos de prueba con colores en HEX
         const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji
@@ -317,7 +317,6 @@
                 setStatus('loading');
                 setErrorMessage('');
 
-                // Modo simulación si no hay URL configurada
                 if (!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
                     setTimeout(() => {
                         if (email === 'test@local.com') {
@@ -335,15 +334,18 @@
                 }
 
                 try {
-                    // Usamos URLSearchParams para engañar a CORS enviando datos como formulario simple
-                    const params = new URLSearchParams();
-                    params.append('email', email);
-                    params.append('title', title);
-                    params.append('date', date);
+                    // CONSTRUIMOS UNA URL GET SEGURA PARA EVITAR EL BLOQUEO CORS
+                    const url = new URL(APP_SCRIPT_URL);
+                    url.searchParams.append('email', email);
+                    url.searchParams.append('title', title);
+                    url.searchParams.append('date', date);
 
-                    const response = await fetch(APP_SCRIPT_URL, {
-                        method: 'POST',
-                        body: params
+                    // Enviamos usando GET
+                    const response = await fetch(url.toString(), {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
                     });
 
                     const data = await response.json();
@@ -360,7 +362,7 @@
                 } catch (error) {
                     console.error("Error al enviar propuesta:", error);
                     setStatus('error');
-                    setErrorMessage("Error de conexión. Verifica la URL de tu Script y que esté implementado como 'Cualquier persona'.");
+                    setErrorMessage(`Fallo de conexión. ¿Hiciste la 'Nueva Implementación' del Script?`);
                 }
                 
                 setTimeout(() => setStatus(''), 5000);
