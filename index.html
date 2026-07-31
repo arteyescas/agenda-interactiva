@@ -440,7 +440,7 @@
                 const [newProposal, setNewProposal] = useState({ title: '', date: '', email: '' });
                 const [isSubmitting, setIsSubmitting] = useState(false);
                 
-                // PEGA TU NUEVA URL AQUÍ:
+                // PEGA TU NUEVA URL AQUÍ: (Asegúrate de que sea la de tu nueva implementación)
                 const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJdM-13tfmpcIJI_I6qB821GwzMuse_zuEZfIDMClN-uIXktWdNk64-C10LdXAGSOy/exec"; 
 
                 const handleProposalSubmit = async (e) => {
@@ -449,8 +449,8 @@
 
                     setIsSubmitting(true);
 
-                    // Simulación si la URL está vacía
-                    if(!APP_SCRIPT_URL || APP_SCRIPT_URL.includes('AKfycb')) {
+                    // CORRECCIÓN: Solo entra en simulación si la URL está vacía.
+                    if(!APP_SCRIPT_URL || APP_SCRIPT_URL.trim() === "") {
                         setTimeout(() => {
                             if (newProposal.email === 'test@local.com') {
                                 setProposals([{...newProposal, author: newProposal.email, id: Date.now()}, ...proposals]);
