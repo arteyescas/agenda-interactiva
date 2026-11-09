@@ -5,9 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agenda Hermosillo 2026</title>
     
-    <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Solo cargamos Tailwind. Sin React, sin Babel, sin dependencias pesadas -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
         body { font-family: 'Inter', sans-serif; transition: background 1s ease; }
@@ -16,426 +15,461 @@
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
         
-        .fast-loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
         .fast-spinner { border: 4px solid #e5e7eb; border-top: 4px solid #4f46e5; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 16px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
-
-    <!-- 1. MODO DIAGNÓSTICO EXTREMO: Atrapa cualquier tipo de error silencioso -->
-    <script>
-        window.appState = { status: 'iniciando', reactLoaded: false };
-        
-        const showError = (title, detail) => {
-            const root = document.getElementById('root');
-            if(root) {
-                root.innerHTML = '<div style="padding: 2rem; color: #b91c1c; font-family: sans-serif; max-width: 90vw; margin: 0 auto; word-wrap: break-word;">' +
-                    '<h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">❌ ' + title + '</h2>' +
-                    '<p style="background: #fee2e2; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">' + detail + '</p>' +
-                    '</div>';
-            }
-        };
-
-        window.onerror = function(msg, url, line) { showError('Error de Script', msg + ' (Línea: ' + line + ')'); return false; };
-        window.addEventListener('unhandledrejection', function(e) { showError('Promesa Rechazada', e.reason); });
-        
-        // Temporizador: Si en 12 segundos React no ha montado la app, mostramos qué falló.
-        setTimeout(() => {
-            if (!window.appState.reactLoaded) {
-                showError('Tiempo de espera agotado (12s)', 'La red está muy lenta o el navegador bloqueó la descarga de Tailwind/React/Babel en modo incógnito.');
-            }
-        }, 12000);
-    </script>
 </head>
 <body class="min-h-screen text-slate-800 bg-gray-100 transition-colors duration-1000" id="body-bg">
     
-    <div id="root">
-        <div class="fast-loader-container">
-            <div class="fast-spinner"></div>
-            <p style="font-weight: bold; color: #374151;">Cargando Agenda...</p>
-            <p style="font-size: 0.8rem; color: #9ca3af; margin-top: 8px;" id="loader-text">Descargando recursos...</p>
+    <!-- Loader inicial -->
+    <div id="loader" class="flex flex-col items-center justify-center h-screen">
+        <div class="fast-spinner"></div>
+        <p class="font-bold text-gray-700">Cargando Agenda...</p>
+    </div>
+
+    <!-- Contenedor principal de la App (Oculto al inicio) -->
+    <div id="app" class="max-w-7xl mx-auto px-4 md:px-8 pb-12 pt-4 hidden">
+        
+        <!-- Header -->
+        <header class="glass-panel sticky top-0 z-40 px-4 md:px-6 py-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 rounded-b-2xl mb-6">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">📅</span>
+                <h1 class="text-2xl font-bold text-gray-800">Mi Agenda 2026</h1>
+            </div>
+            <div class="flex-1 max-w-md w-full relative">
+                <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                <input type="text" placeholder="Buscar eventos..." oninput="updateSearch(this.value)"
+                    class="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 bg-white/80 focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="weather-widget" class="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
+                    <span id="weather-emoji" class="text-xl">☀️</span>
+                    <div class="flex flex-col leading-tight text-right">
+                        <span id="weather-temp">--°C</span><span class="text-[10px] text-gray-500 uppercase">Hermosillo</span>
+                    </div>
+                </div>
+                <button id="music-btn" onclick="toggleMusic()" class="p-2 rounded-full shadow-md transition-all bg-white text-indigo-600">
+                    <span class="text-2xl">🎵</span>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Contenido -->
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- Calendarios -->
+            <div id="calendars-container" class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            
+            <!-- Panel de Propuestas -->
+            <div class="w-full lg:w-96 flex-shrink-0">
+                <div class="glass-panel p-6 rounded-3xl h-full flex flex-col">
+                    <h2 class="text-xl font-bold mb-2 flex items-center gap-2"><span>💡</span> Proponer Evento</h2>
+                    
+                    <form onsubmit="handleProposal(event)" class="space-y-3 mb-6">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Tu Correo (Sesión)</label>
+                            <input type="email" id="prop-email" oninput="onEmailInput(this.value)" required placeholder="tucorreo@gmail.com" class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
+                        </div>
+                        <div>
+                            <input type="text" id="prop-title" required placeholder="Título del evento" class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
+                        </div>
+                        <div>
+                            <input type="date" id="prop-date" required min="2026-08-01" max="2026-12-31" class="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
+                        </div>
+                        
+                        <div id="prop-status"></div>
+
+                        <button type="submit" id="prop-btn" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400">
+                            Proponer
+                        </button>
+                    </form>
+
+                    <div class="flex-1 overflow-y-auto">
+                        <h3 class="text-sm font-bold border-b pb-2 mb-3 flex justify-between">
+                            Tablero
+                            <button onclick="loadProposals()" title="Actualizar" class="text-indigo-600 hover:text-indigo-800">🔄</button>
+                        </h3>
+                        <ul id="proposals-list" class="space-y-3"></ul>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- 2. CAMBIO DE SERVIDORES: jsdelivr es mucho más tolerado por los navegadores privados -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web"></script>
+    <!-- Modal de Eventos -->
+    <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="relative glass-panel bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modal-title" class="text-xl font-bold text-gray-800"></h2>
+                <button onclick="closeModal()" class="p-1 hover:bg-gray-200 rounded-full">✖️</button>
+            </div>
+            <div id="modal-body" class="flex-1 overflow-y-auto pr-2"></div>
+        </div>
+    </div>
 
-    <script type="text/babel">
-        try {
-            document.getElementById('loader-text').innerText = "Iniciando aplicación...";
-            const { useState, useEffect, useMemo, useRef } = React;
+    <!-- SCRIPT PRINCIPAL: Vanilla JS puro (Ultra rápido) -->
+    <script>
+        // --- CONFIGURACIÓN ---
+        const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziJQ1HrN7Wpc_nawpLMVAF6RO7VXazLWr4jTyX5aml8c0197tUrMrcahvtLcsmJ41s/exec";
+        const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji\n2026-08-01,Inicio de mes,Planear objetivos,#bfdbfe,🚀\n2026-08-15,Cena con amigos,Restaurante en el centro a las 8pm,#fef08a,🌮\n2026-09-15,Grito de Independencia,Festejos patrios,#bbf7d0,🇲🇽`;
 
-            const fetchWithTimeout = async (resource, options = {}) => {
-                const { timeout = 8000 } = options;
-                const controller = new AbortController();
-                const id = setTimeout(() => controller.abort(), timeout);
-                const response = await fetch(resource, { ...options, signal: controller.signal });
-                clearTimeout(id);
-                return response;
-            };
+        const MONTHS = [
+            { name: "Agosto", index: 7, days: 31, startDay: 6 }, 
+            { name: "Septiembre", index: 8, days: 30, startDay: 2 }, 
+            { name: "Octubre", index: 9, days: 31, startDay: 4 }, 
+            { name: "Noviembre", index: 10, days: 30, startDay: 0 }, 
+            { name: "Diciembre", index: 11, days: 31, startDay: 2 }, 
+        ];
+        const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
-            const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJv3RnKGah_HW0wOLqpnYHUdNxw8TfwEMIyTirT_DJk-13_SPbOj8YGh6WWZCtc7q4A1pQUNLhijsr/pub?output=csv"; 
-            const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziJQ1HrN7Wpc_nawpLMVAF6RO7VXazLWr4jTyX5aml8c0197tUrMrcahvtLcsmJ41s/exec";
+        // --- ESTADO GLOBAL ---
+        let state = {
+            baseEvents: [],
+            proposals: [],
+            searchQuery: '',
+            email: '',
+            approvingId: null
+        };
 
-            const MOCK_CSV_DATA = `Fecha,Titulo,Descripcion,Color,Emoji\n2026-08-01,Inicio de mes,Planear objetivos,#bfdbfe,🚀\n2026-08-15,Cena con amigos,Restaurante en el centro a las 8pm,#fef08a,🌮\n2026-09-15,Grito de Independencia,Festejos patrios,#bbf7d0,🇲🇽`;
-
-            const MONTHS = [
-                { name: "Agosto", index: 7, days: 31, startDay: 6 }, 
-                { name: "Septiembre", index: 8, days: 30, startDay: 2 }, 
-                { name: "Octubre", index: 9, days: 31, startDay: 4 }, 
-                { name: "Noviembre", index: 10, days: 30, startDay: 0 }, 
-                { name: "Diciembre", index: 11, days: 31, startDay: 2 }, 
-            ];
-            const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-
-            const parseCSV = (csvText) => {
-                const lines = csvText.trim().split('\n');
-                return lines.slice(1).map(line => {
-                    const values = line.split(','); 
-                    return {
-                        date: values[0]?.trim(),
-                        title: values[1]?.trim(),
-                        description: values[2]?.trim() || "",
-                        color: values[3]?.trim() || "#e5e7eb", 
-                        emoji: values[4]?.trim() || "📌"
-                    };
-                }).filter(event => event.date);
-            };
-
-            class MarioSynth {
-                constructor() { this.audioCtx = null; this.isPlaying = false; this.timeouts = []; }
-                init() { if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-                playNote(frequency, startTime, duration) {
-                    if (!this.audioCtx) return;
-                    try {
-                        const osc = this.audioCtx.createOscillator();
-                        const gain = this.audioCtx.createGain();
-                        osc.type = 'square'; osc.frequency.value = frequency;
-                        osc.connect(gain); gain.connect(this.audioCtx.destination);
-                        gain.gain.setValueAtTime(0, startTime);
-                        gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05); 
-                        gain.gain.setValueAtTime(0.1, startTime + duration - 0.05);
-                        gain.gain.linearRampToValueAtTime(0, startTime + duration);
-                        osc.start(startTime); osc.stop(startTime + duration);
-                    } catch(e) { console.error("Audio block:", e); }
-                }
-                playTheme() {
-                    this.init();
-                    if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-                    this.isPlaying = true;
-                    const E5 = 659.25, C5 = 523.25, G5 = 783.99, G4 = 392.00;
-                    const notes = [
-                        { f: E5, d: 0.15, t: 0.0 }, { f: E5, d: 0.15, t: 0.3 }, { f: E5, d: 0.15, t: 0.6 },
-                        { f: C5, d: 0.15, t: 0.9 }, { f: E5, d: 0.15, t: 1.2 }, { f: G5, d: 0.30, t: 1.6 }, { f: G4, d: 0.30, t: 2.2 }
-                    ];
-                    const now = this.audioCtx.currentTime;
-                    notes.forEach(n => this.playNote(n.f, now + n.t, n.d));
-                    const timer = setTimeout(() => { this.isPlaying = false; window.dispatchEvent(new Event('mario-synth-ended')); }, 2800);
-                    this.timeouts.push(timer);
-                }
-                stop() { this.timeouts.forEach(clearTimeout); this.timeouts = []; this.isPlaying = false; }
+        // --- SINTETIZADOR MARIO ---
+        class MarioSynth {
+            constructor() { this.audioCtx = null; this.isPlaying = false; this.timeouts = []; }
+            init() { if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playNote(frequency, startTime, duration) {
+                if (!this.audioCtx) return;
+                try {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'square'; osc.frequency.value = frequency;
+                    osc.connect(gain); gain.connect(this.audioCtx.destination);
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.1, startTime + 0.05); 
+                    gain.gain.setValueAtTime(0.1, startTime + duration - 0.05);
+                    gain.gain.linearRampToValueAtTime(0, startTime + duration);
+                    osc.start(startTime); osc.stop(startTime + duration);
+                } catch(e) { console.error("Audio error:", e); }
             }
-            const synth = new MarioSynth();
+            playTheme() {
+                this.init();
+                if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+                this.isPlaying = true;
+                const E5 = 659.25, C5 = 523.25, G5 = 783.99, G4 = 392.00;
+                const notes = [
+                    { f: E5, d: 0.15, t: 0.0 }, { f: E5, d: 0.15, t: 0.3 }, { f: E5, d: 0.15, t: 0.6 },
+                    { f: C5, d: 0.15, t: 0.9 }, { f: E5, d: 0.15, t: 1.2 }, { f: G5, d: 0.30, t: 1.6 }, { f: G4, d: 0.30, t: 2.2 }
+                ];
+                const now = this.audioCtx.currentTime;
+                notes.forEach(n => this.playNote(n.f, now + n.t, n.d));
+                const timer = setTimeout(() => { this.isPlaying = false; window.dispatchEvent(new Event('mario-synth-ended')); }, 2800);
+                this.timeouts.push(timer);
+            }
+            stop() { this.timeouts.forEach(clearTimeout); this.timeouts = []; this.isPlaying = false; }
+        }
+        const synth = new MarioSynth();
 
-            const Header = ({ searchQuery, setSearchQuery, weather }) => {
-                const [isPlaying, setIsPlaying] = useState(false);
-                useEffect(() => {
-                    const handleEnded = () => setIsPlaying(false);
-                    window.addEventListener('mario-synth-ended', handleEnded);
-                    return () => window.removeEventListener('mario-synth-ended', handleEnded);
-                }, []);
-                const toggleMusic = () => { isPlaying ? synth.stop() : synth.playTheme(); setIsPlaying(!isPlaying); };
+        function toggleMusic() {
+            const btn = document.getElementById('music-btn');
+            if (synth.isPlaying) {
+                synth.stop();
+                btn.classList.replace('bg-indigo-600', 'bg-white');
+                btn.classList.replace('text-white', 'text-indigo-600');
+            } else {
+                synth.playTheme();
+                btn.classList.replace('bg-white', 'bg-indigo-600');
+                btn.classList.replace('text-indigo-600', 'text-white');
+            }
+        }
+        window.addEventListener('mario-synth-ended', () => {
+            const btn = document.getElementById('music-btn');
+            btn.classList.replace('bg-indigo-600', 'bg-white');
+            btn.classList.replace('text-white', 'text-indigo-600');
+        });
 
-                return (
-                    <header className="glass-panel sticky top-0 z-40 px-4 md:px-6 py-4 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 rounded-b-2xl mb-6">
-                        <div className="flex items-center gap-3">
-                            <i className="ph-fill ph-calendar-blank text-3xl text-indigo-600"></i>
-                            <h1 className="text-2xl font-bold text-gray-800">Mi Agenda 2026</h1>
-                        </div>
-                        <div className="flex-1 max-w-md w-full relative">
-                            <i className="ph ph-magnifying-glass absolute left-3 top-3 text-gray-400 text-lg"></i>
-                            <input type="text" placeholder="Buscar eventos..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 bg-white/80 focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
-                                {weather.icon && <i className={`ph-fill ${weather.icon} text-xl ${weather.color}`}></i>}
-                                <div className="flex flex-col leading-tight text-right">
-                                    <span>{weather.temp}°C</span><span className="text-[10px] text-gray-500 uppercase">Hermosillo</span>
-                                </div>
-                            </div>
-                            <button onClick={toggleMusic} className={`p-2 rounded-full shadow-md transition-all ${isPlaying ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}>
-                                <i className={`text-2xl ph-fill ${isPlaying ? 'ph-speaker-high' : 'ph-music-notes'}`}></i>
-                            </button>
-                        </div>
-                    </header>
-                );
-            };
+        // --- LÓGICA DE DATOS ---
+        const parseCSV = (csvText) => {
+            const lines = csvText.trim().split('\n');
+            return lines.slice(1).map(line => {
+                const values = line.split(','); 
+                return {
+                    date: values[0]?.trim(),
+                    title: values[1]?.trim(),
+                    description: values[2]?.trim() || "",
+                    color: values[3]?.trim() || "#e5e7eb", 
+                    emoji: values[4]?.trim() || "📌"
+                };
+            }).filter(event => event.date);
+        };
 
-            const Modal = ({ isOpen, onClose, date, events, title }) => {
-                if (!isOpen) return null;
-                return (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-                        <div className="relative glass-panel bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 flex flex-col max-h-[80vh]">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold text-gray-800">{title || `Agenda: ${date}`}</h2>
-                                <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full"><i className="ph ph-x text-xl"></i></button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto pr-2">
-                                {events.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500"><i className="ph ph-coffee text-4xl mb-2 block"></i>Libre</div>
-                                ) : (
-                                    <ul className="space-y-3">
-                                        {events.map((ev, i) => (
-                                            <li key={i} style={{ backgroundColor: ev.color }} className="p-4 rounded-xl shadow-sm border border-black/5">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-2xl">{ev.emoji}</span>
-                                                    <div className="flex-1">
-                                                        <h3 className="font-bold text-gray-900">{ev.title}</h3>
-                                                        {ev.description && <p className="text-sm text-gray-700 mt-1">{ev.description}</p>}
-                                                    </div>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
+        function getFilteredEvents() {
+            const approvedEvents = state.proposals
+                .filter(p => p.status === 'Aprobado')
+                .map(p => ({
+                    date: String(p.date).substring(0, 10), 
+                    title: p.title,
+                    description: `Propuesto por: ${p.author.split('@')[0]}`,
+                    color: "#bbf7d0", 
+                    emoji: "✨"
+                }));
+            const allEvents = [...state.baseEvents, ...approvedEvents];
+            
+            if (!state.searchQuery) return allEvents;
+            const q = state.searchQuery.toLowerCase();
+            return allEvents.filter(e => e.title.toLowerCase().includes(q) || e.description.toLowerCase().includes(q));
+        }
 
-            const CalendarMonth = ({ monthInfo, events, onDayClick }) => {
-                const { name, index, days, startDay } = monthInfo;
-                const emptyCells = Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="p-2 opacity-0"></div>);
-                
-                const dayCells = Array.from({ length: days }).map((_, i) => {
-                    const dayNum = i + 1;
-                    const dateStr = `2026-${String(index + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        // --- RENDERIZADO VISUAL ---
+        function renderCalendars() {
+            const container = document.getElementById('calendars-container');
+            const events = getFilteredEvents();
+            
+            let html = '';
+            MONTHS.forEach(month => {
+                let cellsHTML = '';
+                for(let i = 0; i < month.startDay; i++) {
+                    cellsHTML += `<div class="p-2 opacity-0"></div>`;
+                }
+                for(let i = 1; i <= month.days; i++) {
+                    const dateStr = `2026-${String(month.index + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                     const dayEvents = events.filter(e => e.date === dateStr);
                     const hasEvents = dayEvents.length > 0;
                     
-                    return (
-                        <div key={dateStr} onClick={() => onDayClick(dateStr, dayEvents)}
-                            style={hasEvents ? { backgroundColor: dayEvents[0].color } : {}}
-                            className={`aspect-square border border-gray-100 p-1 flex flex-col justify-between cursor-pointer rounded-xl transition-all hover:scale-105 ${hasEvents ? 'shadow-sm' : 'bg-white hover:bg-indigo-50'}`}>
-                            <span className={`text-sm font-semibold ${hasEvents ? 'text-gray-900' : 'text-gray-600'}`}>{dayNum}</span>
-                            <div className="flex flex-wrap gap-1 justify-end items-end h-full">
-                                {dayEvents.map((ev, i) => i < 2 && <span key={i} className="text-xs">{ev.emoji}</span>)}
-                            </div>
+                    const bgColor = hasEvents ? `background-color: ${dayEvents[0].color};` : '';
+                    const classes = `aspect-square border border-gray-100 p-1 flex flex-col justify-between cursor-pointer rounded-xl transition-all hover:scale-105 ${hasEvents ? 'shadow-sm text-gray-900' : 'bg-white hover:bg-indigo-50 text-gray-600'}`;
+                    const emojisHTML = dayEvents.slice(0, 2).map(e => `<span class="text-xs">${e.emoji}</span>`).join('');
+                    
+                    cellsHTML += `
+                        <div onclick="openModal('${dateStr}')" style="${bgColor}" class="${classes}">
+                            <span class="text-sm font-semibold">${i}</span>
+                            <div class="flex flex-wrap gap-1 justify-end items-end h-full">${emojisHTML}</div>
                         </div>
-                    );
-                });
-
-                return (
-                    <div className="glass-panel p-4 rounded-3xl flex flex-col">
-                        <h2 className="text-2xl font-black mb-4">{name} <span className="text-gray-400 font-normal">2026</span></h2>
-                        <div className="grid grid-cols-7 gap-1 mb-2">
-                            {WEEKDAYS.map(day => <div key={day} className="text-center text-xs font-bold text-gray-400">{day}</div>)}
-                        </div>
-                        <div className="grid grid-cols-7 gap-1 flex-1">{emptyCells}{dayCells}</div>
+                    `;
+                }
+                
+                const daysHeader = WEEKDAYS.map(d => `<div class="text-center text-xs font-bold text-gray-400">${d}</div>`).join('');
+                
+                html += `
+                    <div class="glass-panel p-4 rounded-3xl flex flex-col">
+                        <h2 class="text-2xl font-black mb-4">${month.name} <span class="text-gray-400 font-normal">2026</span></h2>
+                        <div class="grid grid-cols-7 gap-1 mb-2">${daysHeader}</div>
+                        <div class="grid grid-cols-7 gap-1 flex-1">${cellsHTML}</div>
                     </div>
-                );
-            };
-
-            const EventProposals = ({ proposals, onFetchProposals }) => {
-                const [email, setEmail] = useState('');
-                const [title, setTitle] = useState('');
-                const [date, setDate] = useState('');
-                const [status, setStatus] = useState('');
-                const [errorMessage, setErrorMessage] = useState('');
-                const [approvingId, setApprovingId] = useState(null);
-
-                const callApi = async (action, params) => {
-                    const url = new URL(APP_SCRIPT_URL);
-                    url.searchParams.append('action', action);
-                    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-                    const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' }, timeout: 10000 });
-                    return await res.json();
-                };
-
-                const handleSubmit = async (e) => {
-                    e.preventDefault();
-                    setStatus('loading'); setErrorMessage('');
-                    if (!APP_SCRIPT_URL) { setErrorMessage("Configura el link de Apps Script."); setStatus('error'); return; }
-                    try {
-                        const data = await callApi('propose', { email, title, date });
-                        if (data.result === 'success') {
-                            setStatus('success'); setTitle(''); setDate(''); onFetchProposals();
-                        } else { setStatus('error'); setErrorMessage(data.error); }
-                    } catch (error) { setStatus('error'); setErrorMessage("Error de red."); }
-                    setTimeout(() => setStatus(''), 5000);
-                };
-
-                const handleApprove = async (rowId) => {
-                    if(!email) return alert("Ingresa tu correo arriba primero para poder aprobar.");
-                    setApprovingId(rowId);
-                    try {
-                        const data = await callApi('approve', { email, row: rowId });
-                        if (data.result === 'success') { onFetchProposals(); } 
-                        else { alert("Error: " + data.error); }
-                    } catch (error) { alert("Fallo de conexión al aprobar."); }
-                    setApprovingId(null);
-                };
-
-                return (
-                    <div className="glass-panel p-6 rounded-3xl h-full flex flex-col">
-                        <h2 className="text-xl font-bold mb-2 flex items-center gap-2"><i className="ph-fill ph-lightbulb text-yellow-500"></i> Proponer Evento</h2>
-                        
-                        <form onSubmit={handleSubmit} className="space-y-3 mb-6">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">Tu Correo (Sesión)</label>
-                                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} placeholder="tucorreo@gmail.com" className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
-                            </div>
-                            <div>
-                                <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título del evento" className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
-                            </div>
-                            <div>
-                                <input type="date" required min="2026-08-01" max="2026-12-31" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500" />
-                            </div>
-                            
-                            {status === 'error' && <div className="bg-red-100 text-red-700 p-2 rounded-lg text-sm">❌ {errorMessage}</div>}
-                            {status === 'success' && <div className="bg-green-100 text-green-700 p-2 rounded-lg text-sm">✅ ¡Enviado!</div>}
-
-                            <button type="submit" disabled={status === 'loading'} className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400">
-                                {status === 'loading' ? 'Enviando...' : 'Proponer'}
-                            </button>
-                        </form>
-
-                        <div className="flex-1 overflow-y-auto">
-                            <h3 className="text-sm font-bold border-b pb-2 mb-3 flex justify-between">
-                                Tablero
-                                <button onClick={onFetchProposals} title="Actualizar" className="text-indigo-600 hover:text-indigo-800"><i className="ph ph-arrows-clockwise"></i></button>
-                            </h3>
-                            
-                            <ul className="space-y-3">
-                                {proposals.filter(p => p.status === 'Pendiente').length === 0 ? (
-                                    <li className="text-center text-gray-400 text-sm py-6 border border-dashed border-gray-200 rounded-lg">
-                                        <i className="ph ph-check-circle text-2xl mb-1 block text-gray-300"></i> No hay pendientes
-                                    </li>
-                                ) : (
-                                    proposals.filter(p => p.status === 'Pendiente').map((prop, idx) => (
-                                        <li key={idx} className="p-3 rounded-lg border text-sm bg-white">
-                                            <div className="font-bold">{prop.title}</div>
-                                            <div className="text-xs text-gray-500 mb-2">📅 {String(prop.date).substring(0, 10)} | 👤 {prop.author.split('@')[0]}</div>
-                                            
-                                            {email && prop.author.toLowerCase() !== email ? (
-                                                <button onClick={() => handleApprove(prop.row)} disabled={approvingId === prop.row} className="w-full bg-emerald-500 text-white text-xs py-1.5 rounded font-bold hover:bg-emerald-600 shadow-sm transition-all">
-                                                    {approvingId === prop.row ? 'Procesando...' : '✅ Aprobar'}
-                                                </button>
-                                            ) : (
-                                                <div className="text-xs text-orange-500 font-semibold bg-orange-50 p-1.5 rounded text-center border border-orange-100">
-                                                    ⏳ Esperando aprobación
-                                                </div>
-                                            )}
-                                        </li>
-                                    ))
-                                )}
-                            </ul>
-                        </div>
-                    </div>
-                );
-            };
-
-            const App = () => {
-                const [baseEvents, setBaseEvents] = useState([]);
-                const [proposals, setProposals] = useState([]);
-                const [searchQuery, setSearchQuery] = useState('');
-                const [modalConfig, setModalConfig] = useState({ isOpen: false, date: null, events: [], title: '' });
-                const [weather, setWeather] = useState({ temp: '--', icon: null, color: 'text-gray-500' });
-
-                useEffect(() => {
-                    fetchWithTimeout(GOOGLE_SHEETS_CSV_URL, { timeout: 8000 })
-                        .then(res => res.text())
-                        .then(text => setBaseEvents(parseCSV(text)))
-                        .catch(() => setBaseEvents(parseCSV(MOCK_CSV_DATA))); 
-                }, []);
-
-                const fetchProposals = async () => {
-                    if (!APP_SCRIPT_URL) return;
-                    try {
-                        const url = new URL(APP_SCRIPT_URL);
-                        url.searchParams.append('action', 'read');
-                        const res = await fetchWithTimeout(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' }, timeout: 8000 });
-                        const data = await res.json();
-                        if (data.result === 'success') setProposals(data.data);
-                    } catch (e) { console.warn("No se pudieron cargar propuestas"); }
-                };
-                useEffect(() => { fetchProposals(); }, []);
-
-                useEffect(() => {
-                    fetchWithTimeout("https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true", { timeout: 5000 })
-                        .then(res => res.json())
-                        .then(data => {
-                            const code = data.current_weather.weathercode;
-                            const temp = Math.round(data.current_weather.temperature);
-                            let icon = "ph-sun", color = "text-yellow-500", bg = "bg-blue-50";
-                            if (code >= 1 && code <= 3) { icon = "ph-cloud-sun"; color = "text-gray-400"; bg = "bg-gray-100"; }
-                            else if (code >= 51 && code <= 67) { icon = "ph-cloud-rain"; color = "text-blue-500"; bg = "bg-blue-100"; }
-                            else if (code >= 71) { icon = "ph-snowflake"; color = "text-cyan-500"; bg = "bg-cyan-50"; }
-                            else if (code >= 95) { icon = "ph-cloud-lightning"; color = "text-purple-500"; bg = "bg-slate-200"; }
-                            setWeather({ temp, icon, color });
-                            document.getElementById('body-bg').className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bg}`;
-                        }).catch(() => {});
-                }, []);
-
-                const allEvents = useMemo(() => {
-                    const approvedEvents = proposals
-                        .filter(p => p.status === 'Aprobado')
-                        .map(p => ({
-                            date: String(p.date).substring(0, 10), 
-                            title: p.title,
-                            description: `Propuesto por: ${p.author.split('@')[0]}`,
-                            color: "#bbf7d0", 
-                            emoji: "✨"
-                        }));
-                    return [...baseEvents, ...approvedEvents];
-                }, [baseEvents, proposals]);
-
-                const filteredEvents = useMemo(() => {
-                    if (!searchQuery) return allEvents;
-                    const lowerQ = searchQuery.toLowerCase();
-                    return allEvents.filter(e => e.title.toLowerCase().includes(lowerQ) || e.description.toLowerCase().includes(lowerQ));
-                }, [allEvents, searchQuery]);
-
-                return (
-                    <div className="max-w-7xl mx-auto px-4 md:px-8 pb-12 pt-4">
-                        <Header searchQuery={searchQuery} setSearchQuery={setSearchQuery} weather={weather} />
-                        
-                        <div className="flex flex-col lg:flex-row gap-6">
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {MONTHS.map(month => (
-                                    <CalendarMonth 
-                                        key={month.name} 
-                                        monthInfo={month} 
-                                        events={filteredEvents} 
-                                        onDayClick={(date, evs) => setModalConfig({ isOpen: true, date, events: evs })}
-                                    />
-                                ))}
-                            </div>
-                            <div className="w-full lg:w-96 flex-shrink-0">
-                                <EventProposals proposals={proposals} onFetchProposals={fetchProposals} />
-                            </div>
-                        </div>
-
-                        <Modal {...modalConfig} onClose={() => setModalConfig({ ...modalConfig, isOpen: false })} />
-                    </div>
-                );
-            };
-
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-            
-            // Confirmamos al temporizador que todo salió bien
-            window.appState.reactLoaded = true;
-
-        } catch (err) {
-            window.onerror(err.message, 'App.js', 0);
+                `;
+            });
+            container.innerHTML = html;
         }
+
+        function renderProposals() {
+            const container = document.getElementById('proposals-list');
+            const pending = state.proposals.filter(p => p.status === 'Pendiente');
+            
+            if (pending.length === 0) {
+                container.innerHTML = `
+                    <li class="text-center text-gray-400 text-sm py-6 border border-dashed border-gray-200 rounded-lg">
+                        <span class="text-2xl block text-gray-300 mb-1">✅</span> No hay propuestas pendientes
+                    </li>`;
+                return;
+            }
+            
+            container.innerHTML = pending.map(prop => {
+                const dateStr = String(prop.date).substring(0, 10);
+                const author = prop.author.split('@')[0];
+                const canApprove = state.email && prop.author.toLowerCase() !== state.email.toLowerCase();
+                
+                let actionHtml = '';
+                if (canApprove) {
+                    const isProcessing = state.approvingId === prop.row;
+                    actionHtml = `<button onclick="approveProposal(${prop.row})" ${isProcessing ? 'disabled' : ''} class="w-full bg-emerald-500 text-white text-xs py-1.5 rounded font-bold hover:bg-emerald-600 shadow-sm transition-all">${isProcessing ? 'Procesando...' : '✅ Aprobar'}</button>`;
+                } else {
+                    actionHtml = `<div class="text-xs text-orange-500 font-semibold bg-orange-50 p-1.5 rounded text-center border border-orange-100">⏳ Esperando aprobación</div>`;
+                }
+                
+                return `
+                    <li class="p-3 rounded-lg border text-sm bg-white shadow-sm">
+                        <div class="font-bold">${prop.title}</div>
+                        <div class="text-xs text-gray-500 mb-2">📅 ${dateStr} | 👤 ${author}</div>
+                        ${actionHtml}
+                    </li>
+                `;
+            }).join('');
+        }
+
+        // --- INTERACCIONES DEL USUARIO ---
+        function updateSearch(val) {
+            state.searchQuery = val;
+            renderCalendars();
+        }
+
+        function onEmailInput(val) {
+            state.email = val.trim();
+            renderProposals();
+        }
+
+        function openModal(dateStr) {
+            const events = getFilteredEvents().filter(e => e.date === dateStr);
+            document.getElementById('modal-title').innerText = `Agenda: ${dateStr}`;
+            const body = document.getElementById('modal-body');
+            
+            if (events.length === 0) {
+                body.innerHTML = `<div class="text-center py-8 text-gray-500"><span class="text-4xl block mb-2">☕</span>Libre</div>`;
+            } else {
+                body.innerHTML = `<ul class="space-y-3">` + events.map(ev => `
+                    <li style="background-color: ${ev.color}" class="p-4 rounded-xl shadow-sm border border-black/5">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">${ev.emoji}</span>
+                            <div class="flex-1">
+                                <h3 class="font-bold text-gray-900">${ev.title}</h3>
+                                ${ev.description ? `<p class="text-sm text-gray-700 mt-1">${ev.description}</p>` : ''}
+                            </div>
+                        </div>
+                    </li>
+                `).join('') + `</ul>`;
+            }
+            
+            const modal = document.getElementById('modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // --- LLAMADAS A APIS ---
+        async function handleProposal(e) {
+            e.preventDefault();
+            const email = document.getElementById('prop-email').value.trim();
+            const title = document.getElementById('prop-title').value;
+            const date = document.getElementById('prop-date').value;
+            
+            const btn = document.getElementById('prop-btn');
+            const statusBox = document.getElementById('prop-status');
+            
+            btn.disabled = true;
+            btn.innerText = 'Enviando...';
+            statusBox.innerHTML = '';
+            
+            if (!APP_SCRIPT_URL) {
+                statusBox.innerHTML = `<div class="bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-3">❌ Falla URL de Script</div>`;
+                btn.disabled = false; btn.innerText = 'Proponer';
+                return;
+            }
+            
+            try {
+                const url = new URL(APP_SCRIPT_URL);
+                url.searchParams.append('action', 'propose');
+                url.searchParams.append('email', email);
+                url.searchParams.append('title', title);
+                url.searchParams.append('date', date);
+                
+                const res = await fetch(url.toString());
+                const data = await res.json();
+                
+                if (data.result === 'success') {
+                    statusBox.innerHTML = `<div class="bg-green-100 text-green-700 p-2 rounded-lg text-sm mb-3">✅ ¡Enviado!</div>`;
+                    document.getElementById('prop-title').value = '';
+                    document.getElementById('prop-date').value = '';
+                    loadProposals();
+                } else {
+                    statusBox.innerHTML = `<div class="bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-3">❌ ${data.error}</div>`;
+                }
+            } catch (err) {
+                statusBox.innerHTML = `<div class="bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-3">❌ Error de red</div>`;
+            }
+            
+            btn.disabled = false; btn.innerText = 'Proponer';
+            setTimeout(() => { statusBox.innerHTML = ''; }, 5000);
+        }
+
+        async function approveProposal(rowId) {
+            if(!state.email) return alert("Ingresa tu correo arriba para aprobar.");
+            state.approvingId = rowId;
+            renderProposals();
+            
+            try {
+                const url = new URL(APP_SCRIPT_URL);
+                url.searchParams.append('action', 'approve');
+                url.searchParams.append('email', state.email);
+                url.searchParams.append('row', rowId);
+                
+                const res = await fetch(url.toString());
+                const data = await res.json();
+                
+                if (data.result === 'success') {
+                    await loadProposals();
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch(err) {
+                alert("Fallo de conexión al aprobar.");
+            }
+            state.approvingId = null;
+            renderProposals();
+        }
+
+        async function loadWeather() {
+            try {
+                const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=29.0892&longitude=-110.9613&current_weather=true");
+                const data = await res.json();
+                const code = data.current_weather.weathercode;
+                const temp = Math.round(data.current_weather.temperature);
+                
+                let emoji = "☀️", color = "text-yellow-500", bg = "bg-blue-50";
+                if (code >= 1 && code <= 3) { emoji = "⛅"; color = "text-gray-400"; bg = "bg-gray-100"; }
+                else if (code >= 51 && code <= 67) { emoji = "🌧️"; color = "text-blue-500"; bg = "bg-blue-100"; }
+                else if (code >= 71) { emoji = "❄️"; color = "text-cyan-500"; bg = "bg-cyan-50"; }
+                else if (code >= 95) { emoji = "⚡"; color = "text-purple-500"; bg = "bg-slate-200"; }
+                
+                document.getElementById('weather-temp').innerText = `${temp}°C`;
+                document.getElementById('weather-emoji').innerText = emoji;
+                document.getElementById('weather-widget').classList.add(color);
+                document.getElementById('body-bg').className = `min-h-screen text-slate-800 transition-colors duration-1000 ${bg}`;
+            } catch(e) {}
+        }
+
+        async function loadBaseEvents() {
+            try {
+                const res = await fetch(GOOGLE_SHEETS_CSV_URL);
+                const text = await res.text();
+                state.baseEvents = parseCSV(text);
+            } catch(e) {
+                state.baseEvents = parseCSV(MOCK_CSV_DATA);
+            }
+            renderCalendars();
+        }
+
+        async function loadProposals() {
+            if (!APP_SCRIPT_URL) return;
+            try {
+                const url = new URL(APP_SCRIPT_URL);
+                url.searchParams.append('action', 'read');
+                const res = await fetch(url.toString());
+                const data = await res.json();
+                if (data.result === 'success') {
+                    state.proposals = data.data;
+                    renderProposals();
+                    renderCalendars();
+                }
+            } catch(e) {}
+        }
+
+        // --- INICIALIZACIÓN ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Quitamos la pantalla de carga y mostramos la app instantáneamente
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('app').classList.remove('hidden');
+            
+            // Renderizamos los esqueletos vacíos de inmediato
+            renderCalendars();
+            renderProposals();
+            
+            // Hacemos las peticiones de datos en segundo plano
+            loadWeather();
+            loadBaseEvents();
+            loadProposals();
+        });
     </script>
 </body>
 </html>
